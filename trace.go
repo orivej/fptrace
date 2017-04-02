@@ -20,7 +20,9 @@ func getRegs(pid int) syscall.PtraceRegs {
 func readString(pid int, addr uint64) string {
 	var buf [1024]byte
 	n, err := syscall.PtracePeekData(pid, uintptr(addr), buf[:])
-	e.Print(err)
+	if err != syscall.EIO {
+		e.Exit(err)
+	}
 	res := buf[:n]
 	end := bytes.IndexByte(res, 0)
 	return string(res[:end])
