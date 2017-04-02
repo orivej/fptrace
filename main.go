@@ -1,43 +1,71 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+	"runtime"
 	"syscall"
 
 	"github.com/orivej/e"
 )
 
+const (
+	PTRACE_O_EXITKILL = 1 << 20 // since Linux 3.8
+)
+
 func main() {
-	flOut := flag.String("o", "", "output file")
+	flTrace := flag.String("t", "/dev/null", "trace output file")
+	flDeps := flag.String("d", "", "deps output file")
+	flDepsWithOutput := flag.Bool("do", false, "output only deps with outputs")
 	flag.Parse()
 
 	args := flag.Args()
+	runtime.LockOSThread()
 	proc, err := trace(args)
 	e.Exit(err)
 	pid := proc.Pid
 	_, err = syscall.Wait4(pid, nil, 0, nil)
 	e.Exit(err)
 
-	if *flOut != "" {
-		f, err2 := os.Create(*flOut)
-		e.Exit(err2)
-		os.Stdout = f
-	}
+	f, err2 := os.Create(*flTrace)
+	e.Exit(err2)
+	defer e.CloseOrPrint(f)
+	os.Stdout = f
 
-	err = syscall.PtraceSetOptions(pid, syscall.PTRACE_O_TRACESYSGOOD|
+	err = syscall.PtraceSetOptions(pid, PTRACE_O_EXITKILL|
+		syscall.PTRACE_O_TRACESYSGOOD|
 		syscall.PTRACE_O_TRACEEXEC|
+		syscall.PTRACE_O_TRACEEXIT|
 		syscall.PTRACE_O_TRACECLONE|
 		syscall.PTRACE_O_TRACEFORK|
 		syscall.PTRACE_O_TRACEVFORK)
 	e.Exit(err)
-
 	resume(pid)
-	mainLoop(pid)
+
+	var records []Record
+	recorder := func(p *ProcState) {
+		r := p.Record()
+		no := len(r.Outputs)
+		noOutputs := no == 0 || (no == 1 && r.Outputs[0] == "/dev/tty")
+		if *flDepsWithOutput && noOutputs {
+			return
+		}
+		records = append(records, r)
+	}
+	mainLoop(pid, recorder)
+
+	if *flDeps != "" {
+		f, err := os.Create(*flDeps)
+		e.Exit(err)
+		defer e.CloseOrPrint(f)
+		err = json.NewEncoder(f).Encode(records)
+		e.Exit(err)
+	}
 }
 
-func mainLoop(mainPID int) {
+func mainLoop(mainPID int, recorder func(p *ProcState)) {
 	var err error
 	pstates := map[int]*ProcState{}
 	pstates[mainPID] = NewProcState()
@@ -79,8 +107,11 @@ func mainLoop(mainPID int) {
 				delete(suspended, newpid)
 				resume(newpid)
 			}
-		default:
-			// Ignore PTRACE_EVENT_EXEC.
+		case syscall.PTRACE_EVENT_EXEC, syscall.PTRACE_EVENT_EXIT:
+			if pstate.IOs.Cnt == 1 && len(pstate.IOs.Map) != 0 {
+				recorder(pstate)
+			}
+			pstate.ResetIOs()
 		case 0:
 			// Toggle edge.
 			pstate.SysEnter = !pstate.SysEnter
@@ -90,6 +121,8 @@ func mainLoop(mainPID int) {
 			} else {
 				sysexit(pid, pstate)
 			}
+		default:
+			panic("unexpected wstatus")
 		}
 		resume(pid)
 	}
@@ -115,9 +148,10 @@ func sysexit(pid int, pstate *ProcState) {
 	switch pstate.Syscall {
 	case syscall.SYS_OPEN:
 		path := pstate.Abs(readString(pid, regs.Rdi))
-		pstate.FDs[ret] = path
 		flags := regs.Rsi
 		write := flags&(syscall.O_WRONLY|syscall.O_RDWR) != 0
+		pstate.FDs[ret] = path
+		pstate.IOs.Map[path] = pstate.IOs.Map[path] || write
 		fmt.Println(pid, "open", write, path)
 	case syscall.SYS_CHDIR:
 		path := pstate.Abs(readString(pid, regs.Rdi))
