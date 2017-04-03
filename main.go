@@ -110,14 +110,16 @@ func mainLoop(mainPID int, recorder func(p *ProcState)) {
 		case syscall.PTRACE_EVENT_EXEC, syscall.PTRACE_EVENT_EXIT:
 			if pstate.IOs.Cnt == 1 && len(pstate.IOs.Map) != 0 {
 				recorder(pstate)
+				fmt.Println(pid, "record", pstate.ExecPath)
 			}
 			pstate.ResetIOs()
+			pstate.ExecPath = pstate.NextExec
 		case 0:
 			// Toggle edge.
 			pstate.SysEnter = !pstate.SysEnter
 
 			if pstate.SysEnter {
-				sysenter(pid, pstate)
+				sysenter(pid, pstate, recorder)
 			} else {
 				sysexit(pid, pstate)
 			}
@@ -128,14 +130,12 @@ func mainLoop(mainPID int, recorder func(p *ProcState)) {
 	}
 }
 
-func sysenter(pid int, pstate *ProcState) {
+func sysenter(pid int, pstate *ProcState, recorder func(p *ProcState)) {
 	regs := getRegs(pid)
 	pstate.Syscall = int(regs.Orig_rax)
 	switch pstate.Syscall {
 	case syscall.SYS_EXECVE:
-		if regs.Rdi != 0 {
-			pstate.ExecPath = readString(pid, regs.Rdi)
-		}
+		pstate.NextExec = readString(pid, regs.Rdi)
 	}
 }
 

@@ -11,7 +11,8 @@ type ProcState struct {
 	SysEnter bool           // true on enter to syscall
 	Syscall  int            // call number on exit from syscall
 	CurDir   string         // working directory
-	ExecPath string         // path in the last call to execve
+	ExecPath string         // current executable
+	NextExec string         // next executable
 	FDs      map[int]string // map fds to abspaths
 
 	IOs *IOs
