@@ -15,6 +15,13 @@ const (
 	PTRACE_O_EXITKILL = 1 << 20 // since Linux 3.8
 )
 
+var wstatusText = map[int]string{
+	syscall.PTRACE_EVENT_FORK:       "fork",
+	syscall.PTRACE_EVENT_VFORK:      "vfork",
+	syscall.PTRACE_EVENT_VFORK_DONE: "vforke",
+	syscall.PTRACE_EVENT_CLONE:      "clone",
+}
+
 func main() {
 	flTrace := flag.String("t", "/dev/null", "trace output file")
 	flDeps := flag.String("d", "", "deps output file")
@@ -88,6 +95,7 @@ func mainLoop(mainPID int, recorder func(p *ProcState)) {
 		if !ok {
 			// Keep this PID suspended until we are notified of its creation.
 			suspended[pid] = true
+			fmt.Println(pid, "_suspend")
 			continue
 		}
 
@@ -101,11 +109,12 @@ func mainLoop(mainPID int, recorder func(p *ProcState)) {
 			e.Exit(err)
 			newpid := int(unewpid)
 			pstates[newpid] = pstate.Clone()
-			fmt.Println(pid, "clone", newpid)
+			fmt.Println(pid, wstatusText[wstatus], newpid)
 			// Resume suspended.
 			if suspended[newpid] {
 				delete(suspended, newpid)
 				resume(newpid)
+				fmt.Println(newpid, "_resume")
 			}
 		case syscall.PTRACE_EVENT_EXEC:
 			uoldpid, err := syscall.PtraceGetEventMsg(pid)
@@ -153,6 +162,7 @@ func sysenter(pid int, pstate *ProcState) {
 	switch pstate.Syscall {
 	case syscall.SYS_EXECVE:
 		if regs.Rdi == 0 {
+			fmt.Println(pid, "execve", "???")
 			break
 		}
 		pstate.NextCmd = Cmd{
@@ -160,6 +170,7 @@ func sysenter(pid int, pstate *ProcState) {
 			Args: readStrings(pid, regs.Rsi),
 			Dir:  pstate.CurDir,
 		}
+		fmt.Println(pid, "execve", pstate.NextCmd)
 	}
 }
 
@@ -185,7 +196,5 @@ func sysexit(pid int, pstate *ProcState) {
 		path := pstate.FDs[int(regs.Rdi)]
 		pstate.CurDir = path
 		fmt.Println(pid, "fchdir", path)
-	case syscall.SYS_EXECVE:
-		fmt.Println(pid, "execve", pstate.CurCmd)
 	}
 }
