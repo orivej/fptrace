@@ -111,11 +111,18 @@ func mainLoop(mainPID int, recorder func(p *ProcState)) {
 			uoldpid, err := syscall.PtraceGetEventMsg(pid)
 			e.Exit(err)
 			oldpid := int(uoldpid)
-			oldpstate := pstates[oldpid]
-			terminate(oldpid, oldpstate, recorder)
-			pstate.ExecPath = oldpstate.NextExec
+			if oldpid != pid && pstate.IOs.Cnt != 1 {
+				panic("lost pstate")
+			}
+			pstate = pstates[oldpid]
+			terminate(oldpid, pstate, recorder)
+			pstate.SysEnter = true
+			pstate.ExecPath = pstate.NextExec
+			pstates[pid] = pstate
+			fmt.Println(oldpid, "_exec", pid)
 		case syscall.PTRACE_EVENT_EXIT:
 			terminate(pid, pstate, recorder)
+			fmt.Println(pid, "_exit")
 		case 0:
 			// Toggle edge.
 			pstate.SysEnter = !pstate.SysEnter
@@ -145,7 +152,9 @@ func sysenter(pid int, pstate *ProcState) {
 	pstate.Syscall = int(regs.Orig_rax)
 	switch pstate.Syscall {
 	case syscall.SYS_EXECVE:
-		pstate.NextExec = readString(pid, regs.Rdi)
+		if regs.Rdi != 0 {
+			pstate.NextExec = readString(pid, regs.Rdi)
+		}
 	}
 }
 
