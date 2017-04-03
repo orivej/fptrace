@@ -117,7 +117,7 @@ func mainLoop(mainPID int, recorder func(p *ProcState)) {
 			pstate = pstates[oldpid]
 			terminate(oldpid, pstate, recorder)
 			pstate.SysEnter = true
-			pstate.ExecPath = pstate.NextExec
+			pstate.CurCmd = pstate.NextCmd
 			pstates[pid] = pstate
 			fmt.Println(oldpid, "_exec", pid)
 		case syscall.PTRACE_EVENT_EXIT:
@@ -142,7 +142,7 @@ func mainLoop(mainPID int, recorder func(p *ProcState)) {
 func terminate(pid int, pstate *ProcState, recorder func(p *ProcState)) {
 	if pstate.IOs.Cnt == 1 && len(pstate.IOs.Map) != 0 {
 		recorder(pstate)
-		fmt.Println(pid, "record", pstate.ExecPath)
+		fmt.Println(pid, "record", pstate.CurCmd)
 	}
 	pstate.ResetIOs()
 }
@@ -152,8 +152,12 @@ func sysenter(pid int, pstate *ProcState) {
 	pstate.Syscall = int(regs.Orig_rax)
 	switch pstate.Syscall {
 	case syscall.SYS_EXECVE:
-		if regs.Rdi != 0 {
-			pstate.NextExec = readString(pid, regs.Rdi)
+		if regs.Rdi == 0 {
+			break
+		}
+		pstate.NextCmd = Cmd{
+			Path: readString(pid, regs.Rdi),
+			Args: readStrings(pid, regs.Rsi),
 		}
 	}
 }
@@ -181,6 +185,6 @@ func sysexit(pid int, pstate *ProcState) {
 		pstate.CurDir = path
 		fmt.Println(pid, "fchdir", path)
 	case syscall.SYS_EXECVE:
-		fmt.Println(pid, "execve", pstate.ExecPath)
+		fmt.Println(pid, "execve", pstate.CurCmd)
 	}
 }

@@ -7,19 +7,25 @@ type IOs struct {
 	Map map[string]bool // abspaths; inputs are false, outputs are true
 }
 
+type Cmd struct {
+	Path string
+	Args []string
+}
+
 type ProcState struct {
 	SysEnter bool           // true on enter to syscall
 	Syscall  int            // call number on exit from syscall
 	CurDir   string         // working directory
-	ExecPath string         // current executable
-	NextExec string         // next executable
+	CurCmd   Cmd            // current command
+	NextCmd  Cmd            // command after return from execve
 	FDs      map[int]string // map fds to abspaths
 
 	IOs *IOs
 }
 
 type Record struct {
-	Command string
+	Path    string
+	Args    []string
 	Inputs  []string
 	Outputs []string
 }
@@ -48,7 +54,7 @@ func (ps *ProcState) Clone() *ProcState {
 	newps.IOs = ps.IOs // IOs are shared until exec
 	ps.IOs.Cnt++
 	newps.CurDir = ps.CurDir
-	newps.ExecPath = ps.ExecPath
+	newps.CurCmd = ps.CurCmd
 	for n, s := range ps.FDs {
 		newps.FDs[n] = s
 	}
@@ -56,7 +62,10 @@ func (ps *ProcState) Clone() *ProcState {
 }
 
 func (ps *ProcState) Record() Record {
-	r := Record{Command: ps.ExecPath}
+	r := Record{
+		Path: ps.CurCmd.Path,
+		Args: ps.CurCmd.Args,
+	}
 	for s, output := range ps.IOs.Map {
 		if output {
 			r.Outputs = append(r.Outputs, s)
