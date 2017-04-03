@@ -1,9 +1,17 @@
+#define _GNU_SOURCE
 #include <fcntl.h>
+#include <sched.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
+int execer(void *arg) {
+    execlp("cp", "cp", "b", "c", NULL);
+    perror("execlp");
+}
 
 int main() {
     /* puts("chdir"); */
@@ -44,7 +52,13 @@ int main() {
         wait(NULL);
     }
 
-    /* puts("execlp"); */
-    execlp("cp", "cp", "a", "b", NULL);
-    perror("execlp");
+    /* execer(NULL); */
+
+    void *stack = malloc(4096000);
+    int flags = CLONE_SIGHAND|CLONE_FS|CLONE_VM|CLONE_FILES|CLONE_THREAD;
+    pid = clone(execer, stack+4096000, flags, NULL);
+    if (pid < 0) {
+        perror("clone");
+    }
+    pause();
 }

@@ -48,6 +48,7 @@ func (ps *ProcState) Clone() *ProcState {
 	newps.IOs = ps.IOs // IOs are shared until exec
 	ps.IOs.Cnt++
 	newps.CurDir = ps.CurDir
+	newps.ExecPath = ps.ExecPath
 	for n, s := range ps.FDs {
 		newps.FDs[n] = s
 	}
