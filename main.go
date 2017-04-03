@@ -79,7 +79,7 @@ func mainLoop(mainPID int, recorder func(p *ProcState)) {
 	pstates[mainPID].CurDir, err = os.Getwd()
 	e.Exit(err)
 
-	suspended := map[int]bool{}
+	suspended := map[int]int{}
 	for {
 		pid, wstatus, ok := waitForSyscall()
 		if !ok {
@@ -94,11 +94,12 @@ func mainLoop(mainPID int, recorder func(p *ProcState)) {
 		pstate, ok := pstates[pid]
 		if !ok {
 			// Keep this PID suspended until we are notified of its creation.
-			suspended[pid] = true
+			suspended[pid] = wstatus
 			fmt.Println(pid, "_suspend")
 			continue
 		}
 
+	wstatusSwitch:
 		switch wstatus {
 		case syscall.PTRACE_EVENT_FORK,
 			syscall.PTRACE_EVENT_VFORK,
@@ -111,10 +112,12 @@ func mainLoop(mainPID int, recorder func(p *ProcState)) {
 			pstates[newpid] = pstate.Clone()
 			fmt.Println(pid, wstatusText[wstatus], newpid)
 			// Resume suspended.
-			if suspended[newpid] {
+			if newstatus, ok := suspended[newpid]; ok {
 				delete(suspended, newpid)
-				resume(newpid)
+				resume(pid)
 				fmt.Println(newpid, "_resume")
+				pid, wstatus, pstate = newpid, newstatus, pstates[newpid]
+				goto wstatusSwitch
 			}
 		case syscall.PTRACE_EVENT_EXEC:
 			uoldpid, err := syscall.PtraceGetEventMsg(pid)
@@ -161,10 +164,6 @@ func sysenter(pid int, pstate *ProcState) {
 	pstate.Syscall = int(regs.Orig_rax)
 	switch pstate.Syscall {
 	case syscall.SYS_EXECVE:
-		if regs.Rdi == 0 {
-			fmt.Println(pid, "execve", "???")
-			break
-		}
 		pstate.NextCmd = Cmd{
 			Path: readString(pid, regs.Rdi),
 			Args: readStrings(pid, regs.Rsi),
