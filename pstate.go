@@ -10,6 +10,7 @@ type IOs struct {
 type Cmd struct {
 	Path string
 	Args []string
+	Dir  string
 }
 
 type ProcState struct {
@@ -24,8 +25,7 @@ type ProcState struct {
 }
 
 type Record struct {
-	Path    string
-	Args    []string
+	Cmd     Cmd
 	Inputs  []string
 	Outputs []string
 }
@@ -62,10 +62,7 @@ func (ps *ProcState) Clone() *ProcState {
 }
 
 func (ps *ProcState) Record() Record {
-	r := Record{
-		Path: ps.CurCmd.Path,
-		Args: ps.CurCmd.Args,
-	}
+	r := Record{Cmd: ps.CurCmd}
 	for s, output := range ps.IOs.Map {
 		if output {
 			r.Outputs = append(r.Outputs, s)

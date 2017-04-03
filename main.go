@@ -158,6 +158,7 @@ func sysenter(pid int, pstate *ProcState) {
 		pstate.NextCmd = Cmd{
 			Path: readString(pid, regs.Rdi),
 			Args: readStrings(pid, regs.Rsi),
+			Dir:  pstate.CurDir,
 		}
 	}
 }
