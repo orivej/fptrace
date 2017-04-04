@@ -63,8 +63,13 @@ func (ps *ProcState) Clone() *ProcState {
 
 func (ps *ProcState) Record(sys *SysState) Record {
 	r := Record{Cmd: ps.CurCmd}
+	paths := map[string]bool{}
+	// Deduplicate paths after renames.
 	for inode, output := range ps.IOs.Map {
 		s := sys.FS.Path(inode)
+		paths[s] = paths[s] || output
+	}
+	for s, output := range paths {
 		if output {
 			r.Outputs = append(r.Outputs, s)
 		} else {
