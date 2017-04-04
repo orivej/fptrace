@@ -154,7 +154,7 @@ func mainLoop(sys *SysState, mainPID int, recorder func(p *ProcState)) {
 }
 
 func terminate(pid int, pstate *ProcState, recorder func(p *ProcState)) {
-	if pstate.IOs.Cnt == 1 && len(pstate.IOs.Map) != 0 {
+	if pstate.IOs.Cnt == 1 {
 		recorder(pstate)
 		fmt.Println(pid, "record", pstate.CurCmd)
 	}
@@ -188,7 +188,10 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) {
 		write := flags&(syscall.O_WRONLY|syscall.O_RDWR) != 0
 		inode := sys.FS.Inode(path)
 		pstate.FDs[ret] = inode
-		pstate.IOs.Map[inode] = pstate.IOs.Map[inode] || write
+		if !pstate.IOs.Map[true][inode] {
+			// Treat reads after writes as writes only.
+			pstate.IOs.Map[write][inode] = true
+		}
 		fmt.Println(pid, "open", write, path)
 	case syscall.SYS_CHDIR:
 		path := pstate.Abs(readString(pid, regs.Rdi))

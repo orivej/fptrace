@@ -3,8 +3,9 @@ package main
 import "path"
 
 type IOs struct {
-	Cnt int          // IOs referenc count
-	Map map[int]bool // inodes; inputs are false, outputs are true
+	Cnt int // IOs reference count
+
+	Map map[bool]map[int]bool // input(false)/output(true) inodes
 }
 
 type Cmd struct {
@@ -30,16 +31,23 @@ type Record struct {
 	Outputs []string
 }
 
+func NewIOs() *IOs {
+	return &IOs{1, map[bool]map[int]bool{
+		false: make(map[int]bool),
+		true:  make(map[int]bool),
+	}}
+}
+
 func NewProcState() *ProcState {
 	return &ProcState{
 		FDs: make(map[int]int),
-		IOs: &IOs{1, make(map[int]bool)},
+		IOs: NewIOs(),
 	}
 }
 
 func (ps *ProcState) ResetIOs() {
 	ps.IOs.Cnt--
-	ps.IOs = &IOs{1, make(map[int]bool)}
+	ps.IOs = NewIOs()
 }
 
 func (ps *ProcState) Abs(p string) string {
@@ -63,17 +71,19 @@ func (ps *ProcState) Clone() *ProcState {
 
 func (ps *ProcState) Record(sys *SysState) Record {
 	r := Record{Cmd: ps.CurCmd}
-	paths := map[string]bool{}
-	// Deduplicate paths after renames.
-	for inode, output := range ps.IOs.Map {
-		s := sys.FS.Path(inode)
-		paths[s] = paths[s] || output
-	}
-	for s, output := range paths {
+	for output, inodes := range ps.IOs.Map {
+		// Deduplicate paths after renames.
+		seen := map[string]bool{}
+		paths := &r.Inputs
 		if output {
-			r.Outputs = append(r.Outputs, s)
-		} else {
-			r.Inputs = append(r.Inputs, s)
+			paths = &r.Outputs
+		}
+		for inode := range inodes {
+			s := sys.FS.Path(inode)
+			if !seen[s] {
+				seen[s] = true
+				*paths = append(*paths, s)
+			}
 		}
 	}
 	return r
