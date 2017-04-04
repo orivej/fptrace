@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/orivej/e"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -51,9 +52,10 @@ func main() {
 	e.Exit(err)
 	resume(pid)
 
+	sys := NewSysState()
 	var records []Record
 	recorder := func(p *ProcState) {
-		r := p.Record()
+		r := p.Record(sys)
 		no := len(r.Outputs)
 		noOutputs := no == 0 || (no == 1 && r.Outputs[0] == "/dev/tty")
 		if *flDepsWithOutput && noOutputs {
@@ -61,7 +63,7 @@ func main() {
 		}
 		records = append(records, r)
 	}
-	mainLoop(pid, recorder)
+	mainLoop(sys, pid, recorder)
 
 	if *flDeps != "" {
 		f, err := os.Create(*flDeps)
@@ -72,7 +74,7 @@ func main() {
 	}
 }
 
-func mainLoop(mainPID int, recorder func(p *ProcState)) {
+func mainLoop(sys *SysState, mainPID int, recorder func(p *ProcState)) {
 	var err error
 	pstates := map[int]*ProcState{}
 	pstates[mainPID] = NewProcState()
@@ -142,7 +144,7 @@ func mainLoop(mainPID int, recorder func(p *ProcState)) {
 			if pstate.SysEnter {
 				sysenter(pid, pstate)
 			} else {
-				sysexit(pid, pstate)
+				sysexit(pid, pstate, sys)
 			}
 		default:
 			panic("unexpected wstatus")
@@ -173,7 +175,7 @@ func sysenter(pid int, pstate *ProcState) {
 	}
 }
 
-func sysexit(pid int, pstate *ProcState) {
+func sysexit(pid int, pstate *ProcState, sys *SysState) {
 	regs := getRegs(pid)
 	ret := int(regs.Rax)
 	if ret < 0 {
@@ -184,16 +186,24 @@ func sysexit(pid int, pstate *ProcState) {
 		path := pstate.Abs(readString(pid, regs.Rdi))
 		flags := regs.Rsi
 		write := flags&(syscall.O_WRONLY|syscall.O_RDWR) != 0
-		pstate.FDs[ret] = path
-		pstate.IOs.Map[path] = pstate.IOs.Map[path] || write
+		inode := sys.FS.Inode(path)
+		pstate.FDs[ret] = inode
+		pstate.IOs.Map[inode] = pstate.IOs.Map[inode] || write
 		fmt.Println(pid, "open", write, path)
 	case syscall.SYS_CHDIR:
 		path := pstate.Abs(readString(pid, regs.Rdi))
 		pstate.CurDir = path
 		fmt.Println(pid, "chdir", path)
 	case syscall.SYS_FCHDIR:
-		path := pstate.FDs[int(regs.Rdi)]
+		path := sys.FS.Path(pstate.FDs[int(regs.Rdi)])
 		pstate.CurDir = path
 		fmt.Println(pid, "fchdir", path)
+	case syscall.SYS_RENAME:
+		oldpath := pstate.Abs(readString(pid, regs.Rdi))
+		newpath := pstate.Abs(readString(pid, regs.Rsi))
+		sys.FS.Rename(oldpath, newpath)
+		fmt.Println(pid, "rename", oldpath, newpath)
+	case syscall.SYS_RENAMEAT, unix.SYS_RENAMEAT2:
+		panic("renameat unimplemented")
 	}
 }

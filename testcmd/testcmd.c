@@ -9,7 +9,7 @@
 #include <unistd.h>
 
 int execer(void *arg) {
-    execlp("cp", "cp", "b", "c", NULL);
+    execlp("cp", "cp", "b", "a", NULL);
     perror("execlp");
 }
 
@@ -38,15 +38,21 @@ int main() {
     if (write(fd, "a\n", 2) < 0) {
         perror("write");
     }
+    if (rename("a", "b") < 0) {
+        perror("rename a b");
+    }
     if (close(fd)) {
         perror("close");
+    }
+    if (rename("b", "c") < 0) {
+        perror("rename b c");
     }
 
     int pid = fork();
     if (pid < 0) {
         perror("fork");
     } else if (pid == 0) {
-        execlp("cp", "cp", "a", "b", NULL);
+        execlp("cp", "cp", "c", "b", NULL);
         perror("child execlp");
     } else {
         wait(NULL);
