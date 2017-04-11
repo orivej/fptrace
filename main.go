@@ -25,13 +25,14 @@ var wstatusText = map[int]string{
 
 func main() {
 	flTrace := flag.String("t", "/dev/null", "trace output file")
+	flTracee := flag.String("tracee", "tracee", "tracee command")
 	flDeps := flag.String("d", "", "deps output file")
 	flDepsWithOutput := flag.Bool("do", false, "output only deps with outputs")
 	flag.Parse()
 
 	args := flag.Args()
 	runtime.LockOSThread()
-	proc, err := trace(args)
+	proc, err := trace(*flTracee, args)
 	e.Exit(err)
 	pid := proc.Pid
 	_, err = syscall.Wait4(pid, nil, 0, nil)

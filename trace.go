@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"os"
 	"os/exec"
-	"path"
 	"syscall"
 
 	"github.com/orivej/e"
@@ -71,27 +70,11 @@ func waitForSyscall() (int, int, bool) {
 	}
 }
 
-func trace(argv []string) (*os.Process, error) {
-	tracee, err := findTracee()
-	if err != nil {
-		return nil, err
-	}
+func trace(tracee string, argv []string) (*os.Process, error) {
 	cmd := exec.Command(tracee, argv...) //#nosec
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	err = cmd.Start()
+	err := cmd.Start()
 	return cmd.Process, err
-}
-
-func findTracee() (string, error) {
-	tracee := "tracee"
-	exe, err := os.Executable()
-	if err == nil {
-		tracee2, err := exec.LookPath(path.Join(path.Dir(exe), tracee))
-		if err == nil {
-			return tracee2, nil
-		}
-	}
-	return exec.LookPath(tracee)
 }
