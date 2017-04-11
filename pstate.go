@@ -12,6 +12,9 @@ type Cmd struct {
 	Path string
 	Args []string
 	Dir  string
+
+	ID     int // Cmd ID, changes only with execve
+	Parent int // parent ID
 }
 
 type ProcState struct {

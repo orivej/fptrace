@@ -130,8 +130,8 @@ func mainLoop(sys *SysState, mainPID int, recorder func(p *ProcState)) {
 			}
 			pstate = pstates[oldpid]
 			terminate(oldpid, pstate, recorder)
+			sys.Proc.Exec(pstate)
 			pstate.SysEnter = true
-			pstate.CurCmd = pstate.NextCmd
 			pstates[pid] = pstate
 			fmt.Println(oldpid, "_exec", pid)
 		case syscall.PTRACE_EVENT_EXIT:
@@ -154,7 +154,7 @@ func mainLoop(sys *SysState, mainPID int, recorder func(p *ProcState)) {
 }
 
 func terminate(pid int, pstate *ProcState, recorder func(p *ProcState)) {
-	if pstate.IOs.Cnt == 1 {
+	if pstate.IOs.Cnt == 1 && pstate.CurCmd.ID != 0 {
 		recorder(pstate)
 		fmt.Println(pid, "record", pstate.CurCmd)
 	}

@@ -1,7 +1,8 @@
 package main
 
 type SysState struct {
-	FS *FS
+	FS   *FS
+	Proc *Proc
 }
 
 type FS struct {
@@ -10,8 +11,12 @@ type FS struct {
 	pathInode map[string]int
 }
 
+type Proc struct {
+	lastID int
+}
+
 func NewSysState() *SysState {
-	return &SysState{FS: NewFS()}
+	return &SysState{FS: NewFS(), Proc: NewProc()}
 }
 
 func NewFS() *FS {
@@ -43,4 +48,15 @@ func (fs *FS) Rename(oldpath, newpath string) {
 	delete(fs.pathInode, oldpath)
 	fs.pathInode[newpath] = oldInode
 	fs.inodePath[oldInode] = newpath
+}
+
+func NewProc() *Proc {
+	return &Proc{}
+}
+
+func (p *Proc) Exec(ps *ProcState) {
+	ps.NextCmd.Parent = ps.CurCmd.ID
+	p.lastID++
+	ps.NextCmd.ID = p.lastID
+	ps.CurCmd = ps.NextCmd
 }
