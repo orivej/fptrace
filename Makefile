@@ -20,5 +20,5 @@ install: $(BIN_TARGETS)
 	mkdir -p $(DESTDIR)
 	cp $(BIN_TARGETS) $(DESTDIR)
 
-depgrapher:
+depgrapher: *.go
 	go build -o $@
