@@ -38,8 +38,8 @@ func main() {
 	_, err = syscall.Wait4(pid, nil, 0, nil)
 	e.Exit(err)
 
-	f, err2 := os.Create(*flTrace)
-	e.Exit(err2)
+	f, err := os.Create(*flTrace)
+	e.Exit(err)
 	defer e.CloseOrPrint(f)
 	os.Stdout = f
 
