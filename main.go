@@ -168,7 +168,7 @@ func sysenter(pid int, pstate *ProcState) {
 	switch pstate.Syscall {
 	case syscall.SYS_EXECVE:
 		pstate.NextCmd = Cmd{
-			Path: readString(pid, regs.Rdi),
+			Path: pstate.Abs(readString(pid, regs.Rdi)),
 			Args: readStrings(pid, regs.Rsi),
 			Dir:  pstate.CurDir,
 		}

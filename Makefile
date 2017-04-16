@@ -1,7 +1,7 @@
 BIN_TARGETS = depgrapher $(TRACEE)
 TEST_TARGETS = $(TESTCMD)
 TEST_TEMPS = a b c
-OBJECT_FILES = */*.o 
+OBJECT_FILES = */*.o
 
 TRACEE = tracee/tracee
 TESTCMD = testcmd/testcmd
