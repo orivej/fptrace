@@ -54,7 +54,7 @@ func main() {
 	resume(pid)
 
 	sys := NewSysState()
-	var records []Record
+	records := []Record{}
 	recorder := func(p *ProcState) {
 		r := p.Record(sys)
 		no := len(r.Outputs)
