@@ -12,9 +12,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const (
-	PTRACE_O_EXITKILL = 1 << 20 // since Linux 3.8
-)
+const PTRACE_O_EXITKILL = 1 << 20 // since Linux 3.8
+
+var tracee = "tracee"
 
 var wstatusText = map[int]string{
 	syscall.PTRACE_EVENT_FORK:       "fork",
@@ -25,7 +25,7 @@ var wstatusText = map[int]string{
 
 func main() {
 	flTrace := flag.String("t", "/dev/null", "trace output file")
-	flTracee := flag.String("tracee", "tracee", "tracee command")
+	flTracee := flag.String("tracee", tracee, "tracee command")
 	flDeps := flag.String("d", "", "deps output file")
 	flDepsWithOutput := flag.Bool("do", false, "output only deps with outputs")
 	flag.Parse()
