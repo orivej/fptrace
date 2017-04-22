@@ -22,7 +22,9 @@ func readString(pid int, addr uint64) string {
 	var buf []byte
 	for {
 		n, err := syscall.PtracePeekData(pid, uintptr(addr), chunk[:])
-		e.Print(err)
+		if err != syscall.EIO {
+			e.Print(err)
+		}
 		end := bytes.IndexByte(chunk[:n], 0)
 		if end != -1 {
 			buf = append(buf, chunk[:end]...)
