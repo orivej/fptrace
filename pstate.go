@@ -54,10 +54,10 @@ func (ps *ProcState) ResetIOs() {
 }
 
 func (ps *ProcState) Abs(p string) string {
-	if path.IsAbs(p) {
-		return p
+	if !path.IsAbs(p) {
+		p = path.Join(ps.CurDir, p)
 	}
-	return path.Join(ps.CurDir, p)
+	return path.Clean(p)
 }
 
 func (ps *ProcState) Clone() *ProcState {
