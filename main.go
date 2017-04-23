@@ -189,11 +189,16 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) {
 		write := flags&(syscall.O_WRONLY|syscall.O_RDWR) != 0
 		inode := sys.FS.Inode(path)
 		pstate.FDs[ret] = inode
-		if !pstate.IOs.Map[true][inode] {
-			// Treat reads after writes as writes only.
-			pstate.IOs.Map[write][inode] = true
-		}
 		fmt.Println(pid, "open", write, path)
+		if pstate.IOs.Map[true][inode] {
+			break // Treat reads after writes as writes only.
+		}
+		fi, err := os.Stat(path)
+		e.Exit(err)
+		if fi.IsDir() {
+			break // Do not record directories.
+		}
+		pstate.IOs.Map[write][inode] = true
 	case syscall.SYS_CHDIR:
 		path := pstate.Abs(readString(pid, regs.Rdi))
 		pstate.CurDir = path
