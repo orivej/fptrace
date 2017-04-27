@@ -1,6 +1,9 @@
 package main
 
-import "path"
+import (
+	"path"
+	"sort"
+)
 
 type IOs struct {
 	Cnt int // IOs reference count
@@ -89,5 +92,7 @@ func (ps *ProcState) Record(sys *SysState) Record {
 			}
 		}
 	}
+	sort.Strings(r.Inputs)
+	sort.Strings(r.Outputs)
 	return r
 }
