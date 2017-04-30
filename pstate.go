@@ -12,13 +12,13 @@ type IOs struct {
 }
 
 type Cmd struct {
+	Parent int // parent Cmd ID
+	ID     int // Cmd ID, changes only with execve
+
+	Dir  string
 	Path string
 	Args []string
 	Env  []string `json:",omitempty"`
-	Dir  string
-
-	ID     int // Cmd ID, changes only with execve
-	Parent int // parent ID
 }
 
 type ProcState struct {
