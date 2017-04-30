@@ -14,6 +14,7 @@ type IOs struct {
 type Cmd struct {
 	Path string
 	Args []string
+	Env  []string `json:",omitempty"`
 	Dir  string
 
 	ID     int // Cmd ID, changes only with execve

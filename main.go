@@ -23,6 +23,8 @@ var wstatusText = map[int]string{
 	syscall.PTRACE_EVENT_CLONE:      "clone",
 }
 
+var flEnv = flag.Bool("e", false, "record environment variables")
+
 func main() {
 	flTrace := flag.String("t", "/dev/null", "trace output file")
 	flTracee := flag.String("tracee", tracee, "tracee command")
@@ -171,6 +173,9 @@ func sysenter(pid int, pstate *ProcState) {
 			Path: pstate.Abs(readString(pid, regs.Rdi)),
 			Args: readStrings(pid, regs.Rsi),
 			Dir:  pstate.CurDir,
+		}
+		if *flEnv {
+			pstate.NextCmd.Env = readStrings(pid, regs.Rdx)
 		}
 		fmt.Println(pid, "execve", pstate.NextCmd)
 	}
