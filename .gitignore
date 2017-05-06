@@ -2,5 +2,6 @@
 /b
 /c
 /depgrapher
+/testcmd/segfault
 /testcmd/testcmd
 /tracee/tracee

@@ -53,7 +53,7 @@ func main() {
 		syscall.PTRACE_O_TRACEFORK|
 		syscall.PTRACE_O_TRACEVFORK)
 	e.Exit(err)
-	resume(pid)
+	resume(pid, 0)
 
 	sys := NewSysState()
 	records := []Record{}
@@ -119,7 +119,7 @@ func mainLoop(sys *SysState, mainPID int, recorder func(p *ProcState)) {
 			// Resume suspended.
 			if newstatus, ok := suspended[newpid]; ok {
 				delete(suspended, newpid)
-				resume(pid)
+				resume(pid, 0)
 				fmt.Println(newpid, "_resume")
 				pid, wstatus, pstate = newpid, newstatus, pstates[newpid]
 				goto wstatusSwitch
@@ -152,7 +152,7 @@ func mainLoop(sys *SysState, mainPID int, recorder func(p *ProcState)) {
 		default:
 			panic("unexpected wstatus")
 		}
-		resume(pid)
+		resume(pid, 0)
 	}
 }
 

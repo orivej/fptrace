@@ -1,10 +1,11 @@
 BIN_TARGETS = depgrapher $(TRACEE)
-TEST_TARGETS = $(TESTCMD)
+TEST_TARGETS = $(TESTCMD) $(SEGFAULT)
 TEST_TEMPS = a b c
 OBJECT_FILES = */*.o
 
 TRACEE = tracee/tracee
 TESTCMD = testcmd/testcmd
+SEGFAULT = testcmd/segfault
 
 default: compile
 
@@ -14,7 +15,8 @@ clean:
 compile: $(BIN_TARGETS)
 
 test: $(BIN_TARGETS) $(TEST_TARGETS)
-	./depgrapher -tracee $(TRACEE) -t /dev/null -d /dev/stdout $(TESTCMD)
+	./depgrapher -tracee $(TRACEE) -d /dev/stdout $(TESTCMD)
+	./depgrapher -tracee $(TRACEE) -t /dev/stdout $(SEGFAULT)
 
 install: $(BIN_TARGETS)
 	mkdir -p $(DESTDIR)

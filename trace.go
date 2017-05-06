@@ -50,25 +50,28 @@ func readStrings(pid int, addr uint64) []string {
 	}
 }
 
-func resume(pid int) {
-	err := syscall.PtraceSyscall(pid, 0)
+func resume(pid, signal int) {
+	err := syscall.PtraceSyscall(pid, signal)
 	e.Exit(err)
 }
 
 func waitForSyscall() (int, int, bool) {
 	var wstatus syscall.WaitStatus
 	for {
-		wpid, err := syscall.Wait4(-1, &wstatus, syscall.WALL, nil)
+		pid, err := syscall.Wait4(-1, &wstatus, syscall.WALL, nil)
 		e.Exit(err)
 		switch {
 		case wstatus.Stopped() && wstatus.StopSignal()&0x80 != 0:
-			return wpid, 0, true
+			return pid, 0, true
 		case wstatus.Stopped() && wstatus.TrapCause() > 0:
-			return wpid, wstatus.TrapCause(), true
-		case wstatus.Exited():
-			return wpid, 0, false
+			return pid, wstatus.TrapCause(), true
+		case wstatus.Exited() || wstatus.Signaled():
+			return pid, 0, false
+		case wstatus.Stopped():
+			resume(pid, int(wstatus.StopSignal()))
+		default:
+			panic(wstatus)
 		}
-		resume(wpid)
 	}
 }
 
