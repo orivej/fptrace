@@ -23,7 +23,10 @@ var wstatusText = map[int]string{
 	syscall.PTRACE_EVENT_CLONE:      "clone",
 }
 
-var flEnv = flag.Bool("e", false, "record environment variables")
+var (
+	flEnv      = flag.Bool("e", false, "record environment variables")
+	flUndelete = flag.Bool("u", false, "undelete files")
+)
 
 func main() {
 	flTrace := flag.String("t", "/dev/null", "trace output file")
@@ -208,6 +211,21 @@ func sysenter(pid int, pstate *ProcState) bool {
 			pstate.NextCmd.Env = readStrings(pid, regs.Rdx)
 		}
 		fmt.Println(pid, "execve", pstate.NextCmd)
+	case syscall.SYS_UNLINK, syscall.SYS_RMDIR:
+		if *flUndelete {
+			regs.Orig_rax = syscall.SYS_ACCESS
+			regs.Rsi = syscall.F_OK
+			err := syscall.PtraceSetRegs(pid, &regs)
+			e.Exit(err)
+		}
+	case syscall.SYS_UNLINKAT:
+		if *flUndelete {
+			regs.Orig_rax = syscall.SYS_FACCESSAT
+			regs.R10 = regs.Rdx
+			regs.Rdx = syscall.F_OK
+			err := syscall.PtraceSetRegs(pid, &regs)
+			e.Exit(err)
+		}
 	}
 	return true
 }
