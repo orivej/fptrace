@@ -10,11 +10,14 @@ import (
 	"github.com/orivej/e"
 )
 
-func getRegs(pid int) syscall.PtraceRegs {
+func getRegs(pid int) (syscall.PtraceRegs, bool) {
 	var regs syscall.PtraceRegs
 	err := syscall.PtraceGetRegs(pid, &regs)
+	if err != nil && err.(syscall.Errno) == syscall.ESRCH {
+		return regs, false
+	}
 	e.Exit(err)
-	return regs
+	return regs, true
 }
 
 func readString(pid int, addr uint64) string {

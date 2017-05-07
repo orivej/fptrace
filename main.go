@@ -85,9 +85,19 @@ func mainLoop(sys *SysState, mainPID int, recorder func(p *ProcState)) {
 	e.Exit(err)
 
 	suspended := map[int]int{}
+	terminated := map[int]bool{}
+	term := func(pid int) {
+		if !terminated[pid] {
+			terminate(pid, pstates[pid], recorder)
+			terminated[pid] = true
+		}
+	}
 	for {
 		pid, wstatus, ok := waitForSyscall()
 		if !ok {
+			// Linux may fail to report PTRACE_EVENT_EXIT.
+			term(pid)
+
 			if pid == mainPID {
 				// Exit with the first child.
 				break
@@ -115,6 +125,7 @@ func mainLoop(sys *SysState, mainPID int, recorder func(p *ProcState)) {
 			e.Exit(err)
 			newpid := int(unewpid)
 			pstates[newpid] = pstate.Clone()
+			delete(terminated, newpid)
 			fmt.Println(pid, wstatusText[wstatus], newpid)
 			// Resume suspended.
 			if newstatus, ok := suspended[newpid]; ok {
@@ -132,22 +143,30 @@ func mainLoop(sys *SysState, mainPID int, recorder func(p *ProcState)) {
 				panic("lost pstate")
 			}
 			pstate = pstates[oldpid]
-			terminate(oldpid, pstate, recorder)
+			term(oldpid)
+			delete(terminated, pid)
 			sys.Proc.Exec(pstate)
 			pstate.SysEnter = true
 			pstates[pid] = pstate
 			fmt.Println(oldpid, "_exec", pid)
 		case syscall.PTRACE_EVENT_EXIT:
-			terminate(pid, pstate, recorder)
+			term(pid)
 			fmt.Println(pid, "_exit")
 		case 0:
 			// Toggle edge.
 			pstate.SysEnter = !pstate.SysEnter
 
+			var ok bool
 			if pstate.SysEnter {
-				sysenter(pid, pstate)
+				ok = sysenter(pid, pstate)
 			} else {
-				sysexit(pid, pstate, sys)
+				ok = sysexit(pid, pstate, sys)
+			}
+
+			if !ok {
+				term(pid)
+				fmt.Println(pid, "_vanish")
+				continue
 			}
 		default:
 			panic("unexpected wstatus")
@@ -164,8 +183,11 @@ func terminate(pid int, pstate *ProcState, recorder func(p *ProcState)) {
 	pstate.ResetIOs()
 }
 
-func sysenter(pid int, pstate *ProcState) {
-	regs := getRegs(pid)
+func sysenter(pid int, pstate *ProcState) bool {
+	regs, ok := getRegs(pid)
+	if !ok {
+		return false
+	}
 	pstate.Syscall = int(regs.Orig_rax)
 	switch pstate.Syscall {
 	case syscall.SYS_EXECVE:
@@ -179,13 +201,17 @@ func sysenter(pid int, pstate *ProcState) {
 		}
 		fmt.Println(pid, "execve", pstate.NextCmd)
 	}
+	return true
 }
 
-func sysexit(pid int, pstate *ProcState, sys *SysState) {
-	regs := getRegs(pid)
+func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
+	regs, ok := getRegs(pid)
+	if !ok {
+		return false
+	}
 	ret := int(regs.Rax)
 	if ret < 0 {
-		return
+		return true
 	}
 	switch pstate.Syscall {
 	case syscall.SYS_OPEN:
@@ -220,4 +246,5 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) {
 	case syscall.SYS_RENAMEAT, unix.SYS_RENAMEAT2:
 		panic("renameat unimplemented")
 	}
+	return true
 }
