@@ -30,6 +30,7 @@ func main() {
 	flTracee := flag.String("tracee", tracee, "tracee command")
 	flDeps := flag.String("d", "", "deps output file")
 	flDepsWithOutput := flag.Bool("do", false, "output only deps with outputs")
+	flScripts := flag.String("s", "", "scripts output dir")
 	flag.Parse()
 
 	args := flag.Args()
@@ -55,6 +56,10 @@ func main() {
 	e.Exit(err)
 	resume(pid, 0)
 
+	if *flScripts != "" {
+		err := os.MkdirAll(*flScripts, os.ModePerm)
+		e.Exit(err)
+	}
 	sys := NewSysState()
 	records := []Record{}
 	recorder := func(p *ProcState) {
@@ -63,6 +68,9 @@ func main() {
 		noOutputs := no == 0 || (no == 1 && r.Outputs[0] == "/dev/tty")
 		if *flDepsWithOutput && noOutputs {
 			return
+		}
+		if *flScripts != "" {
+			writeScript(*flScripts, r)
 		}
 		records = append(records, r)
 	}
