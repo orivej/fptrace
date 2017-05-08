@@ -67,3 +67,16 @@ exec cat a
 cd /tmp
 exec tee b
 ```
+
+# Installation
+
+With go get:
+```sh
+go get github.com/orivej/fptrace
+go generate github.com/orivej/fptrace
+```
+
+On NixOS:
+```sh
+nix-env -if https://github.com/orivej/fptrace/archive/master.tar.gz
+```

@@ -14,7 +14,7 @@ import (
 
 const PTRACE_O_EXITKILL = 1 << 20 // since Linux 3.8
 
-var tracee = "tracee"
+var tracee = "_fptracee"
 
 var wstatusText = map[int]string{
 	syscall.PTRACE_EVENT_FORK:       "fork",

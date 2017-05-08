@@ -3,7 +3,7 @@ TEST_TARGETS = $(TESTCMD) $(SEGFAULT)
 TEST_TEMPS = a b c
 OBJECT_FILES = */*.o
 
-TRACEE = tracee/tracee
+TRACEE = ./_fptracee
 TESTCMD = testcmd/testcmd
 SEGFAULT = testcmd/segfault
 

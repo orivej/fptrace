@@ -7,7 +7,7 @@ buildGoPackage rec {
   goPackagePath = "github.com/orivej/fptrace";
   preBuild = ''
     mkdir -p $bin/bin
-    cc go/src/$goPackagePath/tracee/tracee.c -o $bin/bin/tracee
-    buildFlagsArray=("-ldflags=-X main.tracee=$bin/bin/tracee")
+    cc go/src/$goPackagePath/_fptracee.c -o $bin/bin/_fptracee
+    buildFlagsArray=("-ldflags=-X main.tracee=$bin/bin/_fptracee")
   '';
 }
