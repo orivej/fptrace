@@ -9,7 +9,7 @@
 #include <unistd.h>
 
 int execer(void *arg) {
-    execlp("cp", "cp", "b", "a", NULL);
+    execlp("cp", "cp", "../b", "../a", NULL);
     perror("execlp");
 }
 
@@ -20,18 +20,12 @@ int main() {
     };
 
     /* puts("open"); */
-    int fd = open(".", 0);
-    if (fd < 0) {
-        perror("open .");
+    int dirfd = open("testcmd", 0);
+    if (dirfd < 0) {
+        perror("open testcmd");
     }
 
-    /* puts("fchdir"); */
-    if (fchdir(fd)) {
-        perror("fchdir");
-    };
-    close(fd);
-
-    fd = open("a", O_CREAT|O_WRONLY, -1);
+    int fd = openat(dirfd, "../a", O_CREAT|O_WRONLY, -1);
     if (fd < 0) {
         perror("open a");
     }
@@ -44,7 +38,7 @@ int main() {
     if (close(fd)) {
         perror("close");
     }
-    if (rename("b", "c") < 0) {
+    if (renameat(AT_FDCWD, "b", dirfd, "../c") < 0) {
         perror("rename b c");
     }
 
@@ -56,6 +50,13 @@ int main() {
         perror("child execlp");
     } else {
         wait(NULL);
+    }
+
+    if (fchdir(dirfd)) {
+        perror("fchdir");
+    };
+    if (close(dirfd)) {
+        perror("close dir");
     }
 
     /* execer(NULL); */

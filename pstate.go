@@ -58,8 +58,12 @@ func (ps *ProcState) ResetIOs() {
 }
 
 func (ps *ProcState) Abs(p string) string {
+	return ps.AbsAt(ps.CurDir, p)
+}
+
+func (ps *ProcState) AbsAt(dir, p string) string {
 	if !path.IsAbs(p) {
-		p = path.Join(ps.CurDir, p)
+		p = path.Join(dir, p)
 	}
 	return path.Clean(p)
 }

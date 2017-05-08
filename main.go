@@ -234,13 +234,16 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 		return true
 	}
 	switch pstate.Syscall {
-	case syscall.SYS_OPEN:
-		path := pstate.Abs(readString(pid, regs.Rdi))
-		flags := regs.Rsi
+	case syscall.SYS_OPEN, syscall.SYS_OPENAT:
+		call, at, name, flags := "open", unix.AT_FDCWD, regs.Rdi, regs.Rsi
+		if pstate.Syscall == syscall.SYS_OPENAT {
+			call, at, name, flags = "openat", int(regs.Rdi), regs.Rsi, regs.Rdx
+		}
+		path := absAt(at, readString(pid, name), pstate, sys)
 		write := flags&(syscall.O_WRONLY|syscall.O_RDWR) != 0
 		inode := sys.FS.Inode(path)
 		pstate.FDs[ret] = inode
-		fmt.Println(pid, "open", write, path)
+		fmt.Println(pid, call, write, path)
 		if pstate.IOs.Map[true][inode] {
 			break // Treat reads after writes as writes only.
 		}
@@ -264,7 +267,17 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 		sys.FS.Rename(oldpath, newpath)
 		fmt.Println(pid, "rename", oldpath, newpath)
 	case syscall.SYS_RENAMEAT, unix.SYS_RENAMEAT2:
-		panic("renameat unimplemented")
+		oldpath := absAt(int(regs.Rdi), readString(pid, regs.Rsi), pstate, sys)
+		newpath := absAt(int(regs.Rdx), readString(pid, regs.R10), pstate, sys)
+		sys.FS.Rename(oldpath, newpath)
+		fmt.Println(pid, "renameat", oldpath, newpath)
 	}
 	return true
+}
+
+func absAt(dirfd int, path string, pstate *ProcState, sys *SysState) string {
+	if dirfd == unix.AT_FDCWD {
+		return pstate.Abs(path)
+	}
+	return pstate.AbsAt(sys.FS.Path(pstate.FDs[dirfd]), path)
 }
