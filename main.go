@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"runtime"
 	"syscall"
 
@@ -14,6 +15,7 @@ import (
 
 const PTRACE_O_EXITKILL = 1 << 20 // since Linux 3.8
 
+var importpath = "github.com/orivej/fptrace"
 var tracee = "_fptracee"
 
 var wstatusText = map[int]string{
@@ -38,26 +40,18 @@ func main() {
 
 	args := flag.Args()
 	runtime.LockOSThread()
-	proc, err := trace(*flTracee, args)
+	_, err := exec.LookPath(*flTracee)
+	if err != nil {
+		err = fmt.Errorf("%s\ntry running 'go generate %s'", err, importpath)
+	}
 	e.Exit(err)
-	pid := proc.Pid
-	_, err = syscall.Wait4(pid, nil, 0, nil)
+	pid, err := trace(*flTracee, args)
 	e.Exit(err)
 
 	f, err := os.Create(*flTrace)
 	e.Exit(err)
 	defer e.CloseOrPrint(f)
 	os.Stdout = f
-
-	err = syscall.PtraceSetOptions(pid, PTRACE_O_EXITKILL|
-		syscall.PTRACE_O_TRACESYSGOOD|
-		syscall.PTRACE_O_TRACEEXEC|
-		syscall.PTRACE_O_TRACEEXIT|
-		syscall.PTRACE_O_TRACECLONE|
-		syscall.PTRACE_O_TRACEFORK|
-		syscall.PTRACE_O_TRACEVFORK)
-	e.Exit(err)
-	resume(pid, 0)
 
 	if *flScripts != "" {
 		err := os.MkdirAll(*flScripts, os.ModePerm)
@@ -104,7 +98,7 @@ func mainLoop(sys *SysState, mainPID int, recorder func(p *ProcState)) {
 		}
 	}
 	for {
-		pid, wstatus, ok := waitForSyscall()
+		pid, trapCause, ok := waitForSyscall()
 		if !ok {
 			// Linux may fail to report PTRACE_EVENT_EXIT.
 			term(pid)
@@ -120,13 +114,13 @@ func mainLoop(sys *SysState, mainPID int, recorder func(p *ProcState)) {
 		pstate, ok := pstates[pid]
 		if !ok {
 			// Keep this PID suspended until we are notified of its creation.
-			suspended[pid] = wstatus
+			suspended[pid] = trapCause
 			fmt.Println(pid, "_suspend")
 			continue
 		}
 
 	wstatusSwitch:
-		switch wstatus {
+		switch trapCause {
 		case syscall.PTRACE_EVENT_FORK,
 			syscall.PTRACE_EVENT_VFORK,
 			syscall.PTRACE_EVENT_VFORK_DONE,
@@ -137,13 +131,13 @@ func mainLoop(sys *SysState, mainPID int, recorder func(p *ProcState)) {
 			newpid := int(unewpid)
 			pstates[newpid] = pstate.Clone()
 			delete(terminated, newpid)
-			fmt.Println(pid, wstatusText[wstatus], newpid)
+			fmt.Println(pid, wstatusText[trapCause], newpid)
 			// Resume suspended.
 			if newstatus, ok := suspended[newpid]; ok {
 				delete(suspended, newpid)
 				resume(pid, 0)
 				fmt.Println(newpid, "_resume")
-				pid, wstatus, pstate = newpid, newstatus, pstates[newpid]
+				pid, trapCause, pstate = newpid, newstatus, pstates[newpid]
 				goto wstatusSwitch
 			}
 		case syscall.PTRACE_EVENT_EXEC:
@@ -180,7 +174,7 @@ func mainLoop(sys *SysState, mainPID int, recorder func(p *ProcState)) {
 				continue
 			}
 		default:
-			panic("unexpected wstatus")
+			panic("unexpected trap cause")
 		}
 		resume(pid, 0)
 	}

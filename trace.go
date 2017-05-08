@@ -3,12 +3,15 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"os"
 	"os/exec"
 	"syscall"
 
 	"github.com/orivej/e"
 )
+
+var errTraceeExited = errors.New("tracee failed to start")
 
 func getRegs(pid int) (syscall.PtraceRegs, bool) {
 	var regs syscall.PtraceRegs
@@ -78,11 +81,37 @@ func waitForSyscall() (int, int, bool) {
 	}
 }
 
-func trace(tracee string, argv []string) (*os.Process, error) {
+func trace(tracee string, argv []string) (int, error) {
 	cmd := exec.Command(tracee, argv...) //#nosec
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err := cmd.Start()
-	return cmd.Process, err
+	if err != nil {
+		return 0, err
+	}
+
+	pid := cmd.Process.Pid
+	var wstatus syscall.WaitStatus
+	_, err = syscall.Wait4(pid, &wstatus, 0, nil)
+	if err != nil {
+		return 0, err
+	}
+	if wstatus.Exited() {
+		return 0, errTraceeExited
+	}
+
+	err = syscall.PtraceSetOptions(pid, PTRACE_O_EXITKILL|
+		syscall.PTRACE_O_TRACESYSGOOD|
+		syscall.PTRACE_O_TRACEEXEC|
+		syscall.PTRACE_O_TRACEEXIT|
+		syscall.PTRACE_O_TRACECLONE|
+		syscall.PTRACE_O_TRACEFORK|
+		syscall.PTRACE_O_TRACEVFORK)
+	if err != nil {
+		return 0, err
+	}
+
+	resume(pid, 0)
+	return pid, nil
 }
