@@ -22,7 +22,7 @@ func writeScript(dir string, r Record) {
 		fmt.Fprintf(buf, "\nexport %s\n", shquote.QuoteList(r.Cmd.Env))
 	}
 	fmt.Fprintf(buf, "\ncd %s\n", shquote.Quote(r.Cmd.Dir))
-	fmt.Fprintf(buf, "\nexec %s\n", shquote.QuoteList(r.Cmd.Args))
+	fmt.Fprintf(buf, "\n${exec:-exec} %s \"$@\"\n", shquote.QuoteList(r.Cmd.Args))
 	err = buf.Flush()
 	e.Exit(err)
 }

@@ -53,19 +53,19 @@ The result is a list of command executions (ordered by the time of their exit): 
 ```sh
 #!/bin/sh
 cd /tmp
-exec sh -c 'echo a > a; cat a | tee b'
+${exec:-exec} sh -c 'echo a > a; cat a | tee b' "$@"
 ```
 - `1-2-cat`
 ```sh
 #!/bin/sh
 cd /tmp
-exec cat a
+${exec:-exec} cat a "$@"
 ```
 - `1-3-tee`
 ```sh
 #!/bin/sh
 cd /tmp
-exec tee b
+${exec:-exec} tee b "$@"
 ```
 
 # Installation
