@@ -91,10 +91,12 @@ func mainLoop(sys *SysState, mainPID int, recorder func(p *ProcState)) {
 
 	suspended := map[int]int{}
 	terminated := map[int]bool{}
+	running := map[int]bool{mainPID: true}
 	term := func(pid int) {
 		if !terminated[pid] {
 			terminate(pid, pstates[pid], recorder)
 			terminated[pid] = true
+			delete(running, pid)
 		}
 	}
 	for {
@@ -103,8 +105,8 @@ func mainLoop(sys *SysState, mainPID int, recorder func(p *ProcState)) {
 			// Linux may fail to report PTRACE_EVENT_EXIT.
 			term(pid)
 
-			if pid == mainPID {
-				// Exit with the first child.
+			if len(running) == 0 {
+				// Exit with the last process.
 				break
 			}
 			continue
@@ -130,6 +132,7 @@ func mainLoop(sys *SysState, mainPID int, recorder func(p *ProcState)) {
 			e.Exit(err)
 			newpid := int(unewpid)
 			pstates[newpid] = pstate.Clone()
+			running[newpid] = true
 			delete(terminated, newpid)
 			fmt.Println(pid, wstatusText[trapCause], newpid)
 			// Resume suspended.
@@ -153,6 +156,7 @@ func mainLoop(sys *SysState, mainPID int, recorder func(p *ProcState)) {
 			sys.Proc.Exec(pstate)
 			pstate.SysEnter = true
 			pstates[pid] = pstate
+			running[pid] = true
 			fmt.Println(oldpid, "_exec", pid)
 		case syscall.PTRACE_EVENT_EXIT:
 			term(pid)
