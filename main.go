@@ -66,12 +66,13 @@ func main() {
 		if *flDepsWithOutput && noOutputs {
 			return
 		}
-		if *flScripts != "" {
-			writeScript(*flScripts, r)
-		}
 		records = append(records, r)
 	}
-	mainLoop(sys, pid, recorder)
+	onExec := func(cmd *Cmd) {}
+	if *flScripts != "" {
+		onExec = func(cmd *Cmd) { writeScript(*flScripts, *cmd) }
+	}
+	mainLoop(sys, pid, recorder, onExec)
 
 	if *flDeps != "" {
 		f, err := os.Create(*flDeps)
@@ -82,7 +83,7 @@ func main() {
 	}
 }
 
-func mainLoop(sys *SysState, mainPID int, recorder func(p *ProcState)) {
+func mainLoop(sys *SysState, mainPID int, recorder func(*ProcState), onExec func(*Cmd)) {
 	var err error
 	pstates := map[int]*ProcState{}
 	pstates[mainPID] = NewProcState()
@@ -154,6 +155,7 @@ func mainLoop(sys *SysState, mainPID int, recorder func(p *ProcState)) {
 			term(oldpid)
 			delete(terminated, pid)
 			sys.Proc.Exec(pstate)
+			onExec(&pstate.CurCmd)
 			pstate.SysEnter = true
 			pstates[pid] = pstate
 			running[pid] = true
