@@ -36,6 +36,7 @@ type Record struct {
 	Cmd     Cmd
 	Inputs  []string
 	Outputs []string
+	FDs     map[int]string
 }
 
 func NewIOs() *IOs {

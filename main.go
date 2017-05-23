@@ -53,26 +53,43 @@ func main() {
 	defer e.CloseOrPrint(f)
 	os.Stdout = f
 
+	sys := NewSysState()
+	cmdFDs := map[int]map[int]string{}
+	records := []Record{}
+
+	onExec := func(p *ProcState) {
+		fds := map[int]string{}
+		for fd, inode := range p.FDs {
+			if inode != 0 {
+				fds[fd] = sys.FS.Path(inode)
+			}
+		}
+		cmdFDs[p.CurCmd.ID] = fds
+
+	}
 	if *flScripts != "" {
 		err := os.MkdirAll(*flScripts, os.ModePerm)
 		e.Exit(err)
+		onExec0 := onExec
+		onExec = func(p *ProcState) {
+			onExec0(p)
+			writeScript(*flScripts, p.CurCmd)
+		}
 	}
-	sys := NewSysState()
-	records := []Record{}
-	recorder := func(p *ProcState) {
+
+	onExit := func(p *ProcState) {
 		r := p.Record(sys)
 		no := len(r.Outputs)
 		noOutputs := no == 0 || (no == 1 && r.Outputs[0] == "/dev/tty")
 		if *flDepsWithOutput && noOutputs {
 			return
 		}
+		r.FDs = cmdFDs[p.CurCmd.ID]
+		delete(cmdFDs, p.CurCmd.ID)
 		records = append(records, r)
 	}
-	onExec := func(cmd *Cmd) {}
-	if *flScripts != "" {
-		onExec = func(cmd *Cmd) { writeScript(*flScripts, *cmd) }
-	}
-	mainLoop(sys, pid, recorder, onExec)
+
+	mainLoop(sys, pid, onExec, onExit)
 
 	if *flDeps != "" {
 		f, err := os.Create(*flDeps)
@@ -83,7 +100,7 @@ func main() {
 	}
 }
 
-func mainLoop(sys *SysState, mainPID int, recorder func(*ProcState), onExec func(*Cmd)) {
+func mainLoop(sys *SysState, mainPID int, onExec func(*ProcState), onExit func(*ProcState)) {
 	var err error
 	pstates := map[int]*ProcState{}
 
@@ -100,7 +117,7 @@ func mainLoop(sys *SysState, mainPID int, recorder func(*ProcState), onExec func
 	running := map[int]bool{mainPID: true}
 	term := func(pid int) {
 		if !terminated[pid] {
-			terminate(pid, pstates[pid], recorder)
+			terminate(pid, pstates[pid], onExit)
 			terminated[pid] = true
 			delete(running, pid)
 		}
@@ -160,7 +177,7 @@ func mainLoop(sys *SysState, mainPID int, recorder func(*ProcState), onExec func
 			term(oldpid)
 			delete(terminated, pid)
 			sys.Proc.Exec(pstate)
-			onExec(&pstate.CurCmd)
+			onExec(pstate)
 			pstate.SysEnter = true
 			pstates[pid] = pstate
 			running[pid] = true
@@ -191,9 +208,9 @@ func mainLoop(sys *SysState, mainPID int, recorder func(*ProcState), onExec func
 	}
 }
 
-func terminate(pid int, pstate *ProcState, recorder func(p *ProcState)) {
+func terminate(pid int, pstate *ProcState, onExit func(p *ProcState)) {
 	if pstate.IOs.Cnt == 1 && pstate.CurCmd.ID != 0 {
-		recorder(pstate)
+		onExit(pstate)
 		fmt.Println(pid, "record", pstate.CurCmd)
 	}
 	pstate.ResetIOs()
