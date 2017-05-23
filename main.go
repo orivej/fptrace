@@ -277,6 +277,9 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 		newpath := absAt(int(regs.Rdx), readString(pid, regs.R10), pstate, sys)
 		sys.FS.Rename(oldpath, newpath)
 		fmt.Println(pid, "renameat", oldpath, newpath)
+	case syscall.SYS_DUP, syscall.SYS_DUP2, syscall.SYS_DUP3:
+		pstate.FDs[ret] = pstate.FDs[int(regs.Rdi)]
+		fmt.Println(pid, "dup2", regs.Rdi, ret)
 	}
 	return true
 }

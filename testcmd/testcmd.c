@@ -29,14 +29,18 @@ int main() {
     if (fd < 0) {
         perror("open a");
     }
-    if (write(fd, "a\n", 2) < 0) {
+    int fd2 = dup(fd);
+    if (close(fd)) {
+        perror("close");
+    }
+    if (write(fd2, "a\n", 2) < 0) {
         perror("write");
     }
     if (rename("a", "b") < 0) {
         perror("rename a b");
     }
-    if (close(fd)) {
-        perror("close");
+    if (close(fd2)) {
+        perror("close2");
     }
     if (renameat(AT_FDCWD, "b", dirfd, "../c") < 0) {
         perror("rename b c");
