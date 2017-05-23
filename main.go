@@ -86,9 +86,14 @@ func main() {
 func mainLoop(sys *SysState, mainPID int, recorder func(*ProcState), onExec func(*Cmd)) {
 	var err error
 	pstates := map[int]*ProcState{}
-	pstates[mainPID] = NewProcState()
-	pstates[mainPID].CurDir, err = os.Getwd()
+
+	p := NewProcState()
+	p.CurDir, err = os.Getwd()
 	e.Exit(err)
+	p.FDs[0] = sys.FS.Inode("/dev/stdin")
+	p.FDs[1] = sys.FS.Inode("/dev/stdout")
+	p.FDs[2] = sys.FS.Inode("/dev/stderr")
+	pstates[mainPID] = p
 
 	suspended := map[int]int{}
 	terminated := map[int]bool{}
@@ -239,6 +244,12 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 	if ret < 0 {
 		return true
 	}
+	if pstate.Syscall == syscall.SYS_FCNTL {
+		switch regs.Rsi {
+		case syscall.F_DUPFD, syscall.F_DUPFD_CLOEXEC:
+			pstate.Syscall = syscall.SYS_DUP
+		}
+	}
 	switch pstate.Syscall {
 	case syscall.SYS_OPEN, syscall.SYS_OPENAT:
 		call, at, name, flags := "open", unix.AT_FDCWD, regs.Rdi, regs.Rsi
@@ -280,6 +291,19 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 	case syscall.SYS_DUP, syscall.SYS_DUP2, syscall.SYS_DUP3:
 		pstate.FDs[ret] = pstate.FDs[int(regs.Rdi)]
 		fmt.Println(pid, "dup2", regs.Rdi, ret)
+	case syscall.SYS_READ, syscall.SYS_PREAD64, syscall.SYS_READV, syscall.SYS_PREADV, unix.SYS_PREADV2:
+		inode := pstate.FDs[int(regs.Rdi)]
+		if inode != 0 && !pstate.IOs.Map[true][inode] {
+			pstate.IOs.Map[false][inode] = true
+		}
+	case syscall.SYS_WRITE, syscall.SYS_PWRITE64, syscall.SYS_WRITEV, syscall.SYS_PWRITEV, unix.SYS_PWRITEV2:
+		inode := pstate.FDs[int(regs.Rdi)]
+		if inode != 0 {
+			pstate.IOs.Map[true][inode] = true
+		}
+	case syscall.SYS_CLOSE:
+		pstate.FDs[int(regs.Rdi)] = 0
+		fmt.Println(pid, "close", regs.Rdi)
 	}
 	return true
 }

@@ -22,7 +22,7 @@
       "Dir": "/tmp", "Path": "/usr/bin/tee", "Args": ["tee", "b"],
     },
     "Inputs": ["/etc/ld.so.cache", "/lib/x86_64-linux-gnu/libc.so.6"],
-    "Outputs": ["/tmp/b"]
+    "Outputs": ["/dev/stdout", "/tmp/b"]
   },
   {
     "Cmd": {
