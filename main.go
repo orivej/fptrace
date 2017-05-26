@@ -36,6 +36,7 @@ func main() {
 	flDeps := flag.String("d", "", "deps output file")
 	flDepsWithOutput := flag.Bool("do", false, "output only deps with outputs")
 	flScripts := flag.String("s", "", "scripts output dir")
+	flRm := flag.Bool("rm", false, "clean up scripts output dir")
 	flag.Parse()
 
 	args := flag.Args()
@@ -68,6 +69,10 @@ func main() {
 
 	}
 	if *flScripts != "" {
+		if *flRm {
+			err := os.RemoveAll(*flScripts)
+			e.Exit(err)
+		}
 		err := os.MkdirAll(*flScripts, os.ModePerm)
 		e.Exit(err)
 		onExec0 := onExec
