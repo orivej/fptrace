@@ -14,15 +14,17 @@
       "Dir": "/tmp", "Path": "/bin/cat", "Args": ["cat", "a"]
     },
     "Inputs": ["/etc/ld.so.cache", "/lib/x86_64-linux-gnu/libc.so.6", "/tmp/a"],
-    "Outputs": []
+    "Outputs": ["/dev/fptrace/pipe/1"],
+    "FDs": {"0": "/dev/stdin", "1": "/dev/fptrace/pipe/1", "2": "/dev/stderr"}
   },
   {
     "Cmd": {
       "Parent": 1, "ID": 3,
       "Dir": "/tmp", "Path": "/usr/bin/tee", "Args": ["tee", "b"],
     },
-    "Inputs": ["/etc/ld.so.cache", "/lib/x86_64-linux-gnu/libc.so.6"],
-    "Outputs": ["/dev/stdout", "/tmp/b"]
+    "Inputs": ["/dev/fptrace/pipe/1", "/etc/ld.so.cache", "/lib/x86_64-linux-gnu/libc.so.6"],
+    "Outputs": ["/dev/stdout", "/tmp/b"],
+    "FDs": {"0": "/dev/fptrace/pipe/1", "1": "/dev/stdout", "2": "/dev/stderr"}
   },
   {
     "Cmd": {
@@ -30,7 +32,8 @@
       "Dir": "/tmp", "Path": "/bin/sh", "Args": ["sh", "-c", "echo a > a; cat a | tee b"],
     },
     "Inputs": ["/etc/ld.so.cache", "/lib/x86_64-linux-gnu/libc.so.6"],
-    "Outputs": ["/tmp/a"]
+    "Outputs": ["/tmp/a"],
+    "FDs": {"0": "/dev/stdin", "1": "/dev/stdout", "2": "/dev/stderr"}
   }
 ]
 ```
@@ -42,8 +45,9 @@ The result is a list of command executions (ordered by the time of their exit): 
 - `Dir` is the initial working directory
 - `Path` is an absolute path to the executable
 - `Args` are `execve` arguments
+- `FDs` are initial file descriptors
 
-`Inputs` and `Outputs` list absolute paths to files opened for reading and writing, except that files opened for writing and later opened for reading are not listed as execution `Inputs`.
+`Inputs` and `Outputs` list absolute paths to files opened for reading and writing, except that files opened for writing and later opened for reading are not listed as execution `Inputs`. `/dev/fptrace/pipe/` is a fictional directory that enumerates pipes.
 
 # Launcher scripts
 

@@ -1,5 +1,7 @@
 package main
 
+import "fmt"
+
 type SysState struct {
 	FS   *FS
 	Proc *Proc
@@ -7,6 +9,7 @@ type SysState struct {
 
 type FS struct {
 	seq       int
+	pipe      int
 	inodePath map[int]string
 	pathInode map[string]int
 }
@@ -38,6 +41,11 @@ func (fs *FS) Inode(path string) int {
 
 func (fs *FS) Path(inode int) string {
 	return fs.inodePath[inode]
+}
+
+func (fs *FS) Pipe() int {
+	fs.pipe++
+	return fs.Inode(fmt.Sprint("/dev/fptrace/pipe/", fs.pipe))
 }
 
 func (fs *FS) Rename(oldpath, newpath string) {

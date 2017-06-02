@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -326,6 +327,14 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 	case syscall.SYS_CLOSE:
 		pstate.FDs[int(regs.Rdi)] = 0
 		fmt.Println(pid, "close", regs.Rdi)
+	case syscall.SYS_PIPE:
+		var buf [8]byte
+		_, err := syscall.PtracePeekData(pid, uintptr(regs.Rdi), buf[:])
+		e.Exit(err)
+		readfd := int(binary.LittleEndian.Uint32(buf[:4]))
+		writefd := int(binary.LittleEndian.Uint32(buf[4:]))
+		inode := sys.FS.Pipe()
+		pstate.FDs[readfd], pstate.FDs[writefd] = inode, inode
 	}
 	return true
 }
