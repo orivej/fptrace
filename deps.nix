@@ -10,6 +10,15 @@
     };
   }
   {
+    goPackagePath = "github.com/kardianos/osext";
+    fetch = {
+      type = "git";
+      url = "https://github.com/kardianos/osext";
+      rev = "ae77be60afb1dcacde03767a8c37337fad28ac14";
+      sha256 = "056dkgxrqjj5r18bnc3knlpgdz5p3yvp12y4y978hnsfhwaqvbjz";
+    };
+  }
+  {
     goPackagePath = "github.com/orivej/e";
     fetch = {
       type = "git";
@@ -23,8 +32,8 @@
     fetch = {
       type = "git";
       url = "https://go.googlesource.com/sys";
-      rev = "ea9bcade75cb975a0b9738936568ab388b845617";
-      sha256 = "0z7mpb1r5hcfbpw2z355vflwcd3cfp5pssz7q14sczh33rddp10g";
+      rev = "dbc2be9168a660ef302e04b6ff6406de6f967473";
+      sha256 = "1hz9d7wnxwlvhlgmqrxjdx9fihx30f9ww6ir2l74l8ping1g6w1j";
     };
   }
 ]

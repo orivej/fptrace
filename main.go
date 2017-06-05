@@ -42,12 +42,15 @@ func main() {
 
 	args := flag.Args()
 	runtime.LockOSThread()
-	_, err := exec.LookPath(*flTracee)
+	tracee, err := lookBesideExecutable(*flTracee)
+	if err != nil {
+		tracee, err = exec.LookPath(*flTracee)
+	}
 	if err != nil {
 		err = fmt.Errorf("%s\ntry running 'go generate %s'", err, importpath)
 	}
 	e.Exit(err)
-	pid, err := trace(*flTracee, args)
+	pid, err := trace(tracee, args)
 	e.Exit(err)
 
 	f, err := os.Create(*flTrace)
