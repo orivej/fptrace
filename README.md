@@ -47,7 +47,7 @@ The result is a list of command executions (ordered by the time of their exit): 
 - `Args` are `execve` arguments
 - `FDs` are initial file descriptors
 
-`Inputs` and `Outputs` list absolute paths to files opened for reading and writing, except that files opened for writing and later opened for reading are not listed as execution `Inputs`. `/dev/fptrace/pipe/` is a fictional directory that enumerates pipes.
+`Inputs` and `Outputs` list chronologically absolute paths to files opened for reading and writing, except that files opened for writing and later opened for reading are not listed as execution `Inputs`. `/dev/fptrace/pipe/` is a fictional directory that enumerates pipes.
 
 # Launcher scripts
 

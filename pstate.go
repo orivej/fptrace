@@ -1,14 +1,11 @@
 package main
 
-import (
-	"path"
-	"sort"
-)
+import "path"
 
 type IOs struct {
 	Cnt int // IOs reference count
 
-	Map map[bool]map[int]bool // input(false)/output(true) inodes
+	Map map[bool]*IntSliceSet // input(false)/output(true) inodes
 }
 
 type Cmd struct {
@@ -40,9 +37,9 @@ type Record struct {
 }
 
 func NewIOs() *IOs {
-	return &IOs{1, map[bool]map[int]bool{
-		false: make(map[int]bool),
-		true:  make(map[int]bool),
+	return &IOs{1, map[bool]*IntSliceSet{
+		false: NewIntSliceSet(),
+		true:  NewIntSliceSet(),
 	}}
 }
 
@@ -84,21 +81,14 @@ func (ps *ProcState) Clone() *ProcState {
 func (ps *ProcState) Record(sys *SysState) Record {
 	r := Record{Cmd: ps.CurCmd, Inputs: []string{}, Outputs: []string{}}
 	for output, inodes := range ps.IOs.Map {
-		// Deduplicate paths after renames.
-		seen := map[string]bool{}
 		paths := &r.Inputs
 		if output {
 			paths = &r.Outputs
 		}
-		for inode := range inodes {
+		for _, inode := range inodes.Slice {
 			s := sys.FS.Path(inode)
-			if !seen[s] {
-				seen[s] = true
-				*paths = append(*paths, s)
-			}
+			*paths = append(*paths, s)
 		}
 	}
-	sort.Strings(r.Inputs)
-	sort.Strings(r.Outputs)
 	return r
 }

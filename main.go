@@ -287,7 +287,7 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 		inode := sys.FS.Inode(path)
 		pstate.FDs[ret] = inode
 		fmt.Println(pid, call, write, path)
-		if pstate.IOs.Map[true][inode] {
+		if pstate.IOs.Map[true].Has[inode] {
 			break // Treat reads after writes as writes only.
 		}
 		fi, err := os.Stat(path)
@@ -295,7 +295,7 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 		if fi.IsDir() {
 			break // Do not record directories.
 		}
-		pstate.IOs.Map[write][inode] = true
+		pstate.IOs.Map[write].Add(inode)
 	case syscall.SYS_CHDIR:
 		path := pstate.Abs(readString(pid, regs.Rdi))
 		pstate.CurDir = path
@@ -319,13 +319,13 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 		fmt.Println(pid, "dup2", regs.Rdi, ret)
 	case syscall.SYS_READ, syscall.SYS_PREAD64, syscall.SYS_READV, syscall.SYS_PREADV, unix.SYS_PREADV2:
 		inode := pstate.FDs[int(regs.Rdi)]
-		if inode != 0 && !pstate.IOs.Map[true][inode] {
-			pstate.IOs.Map[false][inode] = true
+		if inode != 0 && !pstate.IOs.Map[true].Has[inode] {
+			pstate.IOs.Map[false].Add(inode)
 		}
 	case syscall.SYS_WRITE, syscall.SYS_PWRITE64, syscall.SYS_WRITEV, syscall.SYS_PWRITEV, unix.SYS_PWRITEV2:
 		inode := pstate.FDs[int(regs.Rdi)]
 		if inode != 0 {
-			pstate.IOs.Map[true][inode] = true
+			pstate.IOs.Map[true].Add(inode)
 		}
 	case syscall.SYS_CLOSE:
 		pstate.FDs[int(regs.Rdi)] = 0
