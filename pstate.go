@@ -5,7 +5,7 @@ import "path"
 type IOs struct {
 	Cnt int // IOs reference count
 
-	Map map[bool]*IntSliceSet // input(false)/output(true) inodes
+	Map [2]IntSliceSet // input(false)/output(true) inodes
 }
 
 type Cmd struct {
@@ -37,9 +37,9 @@ type Record struct {
 }
 
 func NewIOs() *IOs {
-	return &IOs{1, map[bool]*IntSliceSet{
-		false: NewIntSliceSet(),
-		true:  NewIntSliceSet(),
+	return &IOs{1, [2]IntSliceSet{
+		NewIntSliceSet(),
+		NewIntSliceSet(),
 	}}
 }
 
@@ -82,7 +82,7 @@ func (ps *ProcState) Record(sys *SysState) Record {
 	r := Record{Cmd: ps.CurCmd, Inputs: []string{}, Outputs: []string{}}
 	for output, inodes := range ps.IOs.Map {
 		paths := &r.Inputs
-		if output {
+		if output == W {
 			paths = &r.Outputs
 		}
 		for _, inode := range inodes.Slice {

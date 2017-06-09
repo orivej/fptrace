@@ -15,6 +15,8 @@ import (
 )
 
 const PTRACE_O_EXITKILL = 1 << 20 // since Linux 3.8
+const R = 0
+const W = 1
 
 var importpath = "github.com/orivej/fptrace"
 var tracee = "_fptracee"
@@ -283,11 +285,14 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 			call, at, name, flags = "openat", int(regs.Rdi), regs.Rsi, regs.Rdx
 		}
 		path := absAt(at, readString(pid, name), pstate, sys)
-		write := flags&(syscall.O_WRONLY|syscall.O_RDWR) != 0
+		write := flags & (syscall.O_WRONLY | syscall.O_RDWR)
+		if write != 0 {
+			write = W
+		}
 		inode := sys.FS.Inode(path)
 		pstate.FDs[ret] = inode
 		fmt.Println(pid, call, write, path)
-		if pstate.IOs.Map[true].Has[inode] {
+		if pstate.IOs.Map[W].Has[inode] {
 			break // Treat reads after writes as writes only.
 		}
 		fi, err := os.Stat(path)
@@ -319,13 +324,13 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 		fmt.Println(pid, "dup2", regs.Rdi, ret)
 	case syscall.SYS_READ, syscall.SYS_PREAD64, syscall.SYS_READV, syscall.SYS_PREADV, unix.SYS_PREADV2:
 		inode := pstate.FDs[int(regs.Rdi)]
-		if inode != 0 && !pstate.IOs.Map[true].Has[inode] {
-			pstate.IOs.Map[false].Add(inode)
+		if inode != 0 && !pstate.IOs.Map[W].Has[inode] {
+			pstate.IOs.Map[R].Add(inode)
 		}
 	case syscall.SYS_WRITE, syscall.SYS_PWRITE64, syscall.SYS_WRITEV, syscall.SYS_PWRITEV, unix.SYS_PWRITEV2:
 		inode := pstate.FDs[int(regs.Rdi)]
 		if inode != 0 {
-			pstate.IOs.Map[true].Add(inode)
+			pstate.IOs.Map[W].Add(inode)
 		}
 	case syscall.SYS_CLOSE:
 		pstate.FDs[int(regs.Rdi)] = 0

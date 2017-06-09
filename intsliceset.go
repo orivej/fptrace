@@ -5,8 +5,8 @@ type IntSliceSet struct {
 	Has   map[int]bool
 }
 
-func NewIntSliceSet() *IntSliceSet {
-	return &IntSliceSet{
+func NewIntSliceSet() IntSliceSet {
+	return IntSliceSet{
 		Slice: []int{},
 		Has:   map[int]bool{},
 	}
