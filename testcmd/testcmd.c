@@ -20,7 +20,7 @@ int main() {
     };
 
     /* puts("open"); */
-    int dirfd = open("testcmd", 0);
+    int dirfd = open("testcmd", O_CLOEXEC);
     if (dirfd < 0) {
         perror("open testcmd");
     }

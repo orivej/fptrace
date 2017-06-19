@@ -19,12 +19,13 @@ type Cmd struct {
 }
 
 type ProcState struct {
-	SysEnter bool        // true on enter to syscall
-	Syscall  int         // call number on exit from syscall
-	CurDir   string      // working directory
-	CurCmd   Cmd         // current command
-	NextCmd  Cmd         // command after return from execve
-	FDs      map[int]int // map fds to inodes
+	SysEnter bool         // true on enter to syscall
+	Syscall  int          // call number on exit from syscall
+	CurDir   string       // working directory
+	CurCmd   Cmd          // current command
+	NextCmd  Cmd          // command after return from execve
+	FDs      map[int]int  // map fds to inodes
+	FDCX     map[int]bool // cloexec fds
 
 	IOs *IOs
 }
@@ -45,8 +46,9 @@ func NewIOs() *IOs {
 
 func NewProcState() *ProcState {
 	return &ProcState{
-		FDs: make(map[int]int),
-		IOs: NewIOs(),
+		FDs:  make(map[int]int),
+		FDCX: make(map[int]bool),
+		IOs:  NewIOs(),
 	}
 }
 
@@ -74,9 +76,15 @@ func (ps *ProcState) Clone(cloneFiles bool) *ProcState {
 	newps.CurCmd = ps.CurCmd
 	if cloneFiles {
 		newps.FDs = ps.FDs
+		newps.FDCX = ps.FDCX
 	} else {
 		for n, s := range ps.FDs {
 			newps.FDs[n] = s
+		}
+		for n, b := range ps.FDCX {
+			if b {
+				newps.FDCX[n] = b
+			}
 		}
 	}
 	return newps

@@ -66,5 +66,11 @@ func (p *Proc) Exec(ps *ProcState) {
 	ps.NextCmd.Parent = ps.CurCmd.ID
 	p.lastID++
 	ps.NextCmd.ID = p.lastID
+	for n, b := range ps.FDCX {
+		if b {
+			delete(ps.FDs, n)
+		}
+	}
+	ps.FDCX = make(map[int]bool)
 	ps.CurCmd = ps.NextCmd
 }

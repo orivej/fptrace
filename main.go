@@ -279,8 +279,15 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 	}
 	if pstate.Syscall == syscall.SYS_FCNTL {
 		switch regs.Rsi {
-		case syscall.F_DUPFD, syscall.F_DUPFD_CLOEXEC:
+		case syscall.F_DUPFD:
 			pstate.Syscall = syscall.SYS_DUP
+		case syscall.F_DUPFD_CLOEXEC:
+			pstate.Syscall = syscall.SYS_DUP3
+			regs.Rdx = syscall.O_CLOEXEC
+		case syscall.F_SETFD:
+			b := regs.Rdx&syscall.FD_CLOEXEC != 0
+			pstate.FDCX[int(regs.Rdi)] = b
+			fmt.Println(pid, "fcntl/setfd", regs.Rdi, b)
 		}
 	}
 	switch pstate.Syscall {
@@ -296,6 +303,9 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 		}
 		inode := sys.FS.Inode(path)
 		pstate.FDs[ret] = inode
+		if flags&syscall.O_CLOEXEC != 0 {
+			pstate.FDCX[ret] = true
+		}
 		fmt.Println(pid, call, write, path)
 		if pstate.IOs.Map[W].Has[inode] {
 			break // Treat reads after writes as writes only.
@@ -326,7 +336,10 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 		fmt.Println(pid, "renameat", oldpath, newpath)
 	case syscall.SYS_DUP, syscall.SYS_DUP2, syscall.SYS_DUP3:
 		pstate.FDs[ret] = pstate.FDs[int(regs.Rdi)]
-		fmt.Println(pid, "dup2", regs.Rdi, ret)
+		if pstate.Syscall == syscall.SYS_DUP3 && regs.Rdx&syscall.O_CLOEXEC != 0 {
+			pstate.FDCX[ret] = true
+		}
+		fmt.Println(pid, "dup", regs.Rdi, ret, pstate.FDCX[ret])
 	case syscall.SYS_READ, syscall.SYS_PREAD64, syscall.SYS_READV, syscall.SYS_PREADV, unix.SYS_PREADV2:
 		inode := pstate.FDs[int(regs.Rdi)]
 		if inode != 0 && !pstate.IOs.Map[W].Has[inode] {
@@ -338,7 +351,9 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 			pstate.IOs.Map[W].Add(inode)
 		}
 	case syscall.SYS_CLOSE:
-		pstate.FDs[int(regs.Rdi)] = 0
+		n := int(regs.Rdi)
+		pstate.FDs[n] = 0
+		delete(pstate.FDCX, n)
 		fmt.Println(pid, "close", regs.Rdi)
 	case syscall.SYS_PIPE:
 		var buf [8]byte
@@ -348,6 +363,10 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 		writefd := int(binary.LittleEndian.Uint32(buf[4:]))
 		inode := sys.FS.Pipe()
 		pstate.FDs[readfd], pstate.FDs[writefd] = inode, inode
+		if regs.Rsi&syscall.O_CLOEXEC != 0 {
+			pstate.FDCX[readfd], pstate.FDCX[writefd] = true, true
+		}
+		fmt.Println(pid, "pipe", readfd, writefd, pstate.FDCX[readfd])
 	}
 	return true
 }
