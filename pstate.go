@@ -66,14 +66,18 @@ func (ps *ProcState) AbsAt(dir, p string) string {
 	return path.Clean(p)
 }
 
-func (ps *ProcState) Clone() *ProcState {
+func (ps *ProcState) Clone(cloneFiles bool) *ProcState {
 	newps := NewProcState()
 	newps.IOs = ps.IOs // IOs are shared until exec
 	ps.IOs.Cnt++
 	newps.CurDir = ps.CurDir
 	newps.CurCmd = ps.CurCmd
-	for n, s := range ps.FDs {
-		newps.FDs[n] = s
+	if cloneFiles {
+		newps.FDs = ps.FDs
+	} else {
+		for n, s := range ps.FDs {
+			newps.FDs[n] = s
+		}
 	}
 	return newps
 }

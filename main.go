@@ -165,7 +165,12 @@ func mainLoop(sys *SysState, mainPID int, onExec func(*ProcState), onExit func(*
 			unewpid, err := syscall.PtraceGetEventMsg(pid)
 			e.Exit(err)
 			newpid := int(unewpid)
-			pstates[newpid] = pstate.Clone()
+			cloneFiles := false
+			if trapCause == syscall.PTRACE_EVENT_CLONE {
+				regs, ok := getRegs(pid)
+				cloneFiles = ok && regs.Rdx&syscall.CLONE_FILES != 0
+			}
+			pstates[newpid] = pstate.Clone(cloneFiles)
 			running[newpid] = true
 			delete(terminated, newpid)
 			fmt.Println(pid, wstatusText[trapCause], newpid)
