@@ -41,6 +41,7 @@ func main() {
 	flScripts := flag.String("s", "", "scripts output dir")
 	flRm := flag.Bool("rm", false, "clean up scripts output dir")
 	flag.Parse()
+	e.Output = os.Stderr
 
 	args := flag.Args()
 	runtime.LockOSThread()

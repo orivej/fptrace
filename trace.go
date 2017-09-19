@@ -58,7 +58,7 @@ func readStrings(pid int, addr uint64) []string {
 
 func resume(pid, signal int) {
 	err := syscall.PtraceSyscall(pid, signal)
-	e.Exit(err)
+	e.Print(err)
 }
 
 func waitForSyscall() (int, int, bool) {
