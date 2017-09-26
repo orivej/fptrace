@@ -383,18 +383,17 @@ func absAt(dirfd int, path string, pid int, pstate *ProcState, sys *SysState) st
 	}
 
 	// Resolve process-relative paths.
-	var fd int
-	_, err := fmt.Sscanf(path, "/dev/fd/%d", &fd)
-	if err != nil {
-		_, err = fmt.Sscanf(path, "/proc/self/fd/%d", &fd)
+	if strings.HasPrefix(path, "/dev/fd/") {
+		path = strings.Replace(path, "/dev/fd/", "/proc/self/fd/", 1)
 	}
-	if err != nil {
-		return path
+	if strings.HasPrefix(path, "/proc/self/") {
+		var fd int
+		if _, err := fmt.Sscanf(path, "/proc/self/fd/%d", &fd); err == nil {
+			if inode, ok := pstate.FDs[fd]; ok {
+				return sys.FS.inodePath[inode]
+			}
+		}
+		return strings.Replace(path, "self", string(pid), 1)
 	}
-
-	inode, ok := pstate.FDs[fd]
-	if !ok {
-		return fmt.Sprintf("/proc/%d/fd/%d", pid, fd)
-	}
-	return sys.FS.inodePath[inode]
+	return path
 }
