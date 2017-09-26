@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -384,7 +385,7 @@ func absAt(dirfd int, path string, pid int, pstate *ProcState, sys *SysState) st
 
 	// Resolve process-relative paths.
 	if strings.HasPrefix(path, "/dev/fd/") {
-		path = strings.Replace(path, "/dev/fd/", "/proc/self/fd/", 1)
+		path = "/proc/self/fd/" + path[len("/dev/fd/"):]
 	}
 	if strings.HasPrefix(path, "/proc/self/") {
 		var fd int
@@ -393,7 +394,7 @@ func absAt(dirfd int, path string, pid int, pstate *ProcState, sys *SysState) st
 				return sys.FS.inodePath[inode]
 			}
 		}
-		return strings.Replace(path, "self", string(pid), 1)
+		return strings.Replace(path, "self", strconv.Itoa(pid), 1)
 	}
 	return path
 }
