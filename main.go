@@ -391,7 +391,7 @@ func absAt(dirfd int, path string, pid int, pstate *ProcState, sys *SysState) st
 		var fd int
 		if _, err := fmt.Sscanf(path, "/proc/self/fd/%d", &fd); err == nil {
 			if inode, ok := pstate.FDs[fd]; ok {
-				return sys.FS.inodePath[inode]
+				return sys.FS.Path(inode)
 			}
 		}
 		return strings.Replace(path, "self", strconv.Itoa(pid), 1)
