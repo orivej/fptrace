@@ -30,29 +30,52 @@ int main() {
         perror("open a");
     }
     int fd2 = dup(fd);
-    if (close(fd)) {
-        perror("close");
-    }
     if (write(fd2, "a\n", 2) < 0) {
         perror("write");
     }
     if (rename("a", "b") < 0) {
         perror("rename a b");
     }
-    if (close(fd2)) {
-        perror("close2");
-    }
     if (renameat(AT_FDCWD, "b", dirfd, "../c") < 0) {
         perror("rename b c");
+    }
+
+    int pipefd[2];
+    if (pipe(pipefd)) {
+        perror("pipe");
+    }
+    char *pipe_r_path, *pipe_w_path;
+    if (asprintf(&pipe_r_path, "/dev/fd/%d", pipefd[0]) < 0) {
+        perror("asprintf pipe_r");
+    }
+    if (asprintf(&pipe_w_path, "/proc/self/fd/%d", pipefd[1]) < 0) {
+        perror("asprintf pipe_w");
+    }
+    int pipe_r = open(pipe_r_path, O_RDONLY);
+    if (pipe_r < 0) {
+        perror("open pipe_r");
+    }
+    int pipe_w = open(pipe_w_path, O_WRONLY);
+    if (pipe_w < 0) {
+        perror("open pipe_w");
     }
 
     int pid = fork();
     if (pid < 0) {
         perror("fork");
     } else if (pid == 0) {
+        char buf;
+        if (read(pipefd[0], &buf, 1) != 1 || read(pipe_r, &buf, 1) != 1) {
+            perror("read pipe_r");
+        }
+
         execlp("cp", "cp", "c", "b", NULL);
         perror("child execlp");
     } else {
+        if (write(pipefd[1], "a", 1) != 1 || write(pipe_w, "b", 1) != 1) {
+            perror("write pipe_w");
+        }
+
         wait(NULL);
     }
 

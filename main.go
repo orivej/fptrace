@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"syscall"
 
 	"github.com/orivej/e"
@@ -297,7 +298,7 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 		if pstate.Syscall == syscall.SYS_OPENAT {
 			call, at, name, flags = "openat", int(regs.Rdi), regs.Rsi, regs.Rdx
 		}
-		path := absAt(at, readString(pid, name), pstate, sys)
+		path := absAt(at, readString(pid, name), pid, pstate, sys)
 		write := flags & (syscall.O_WRONLY | syscall.O_RDWR)
 		if write != 0 {
 			write = W
@@ -311,10 +312,12 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 		if pstate.IOs.Map[W].Has[inode] {
 			break // Treat reads after writes as writes only.
 		}
-		fi, err := os.Stat(path)
-		e.Exit(err)
-		if fi.IsDir() {
-			break // Do not record directories.
+		if !strings.HasPrefix(path, "/dev/fptrace/pipe/") {
+			fi, err := os.Stat(path)
+			e.Exit(err)
+			if fi.IsDir() {
+				break // Do not record directories.
+			}
 		}
 		pstate.IOs.Map[write].Add(inode)
 	case syscall.SYS_CHDIR:
@@ -331,8 +334,8 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 		sys.FS.Rename(oldpath, newpath)
 		fmt.Println(pid, "rename", oldpath, newpath)
 	case syscall.SYS_RENAMEAT, unix.SYS_RENAMEAT2:
-		oldpath := absAt(int(regs.Rdi), readString(pid, regs.Rsi), pstate, sys)
-		newpath := absAt(int(regs.Rdx), readString(pid, regs.R10), pstate, sys)
+		oldpath := absAt(int(regs.Rdi), readString(pid, regs.Rsi), pid, pstate, sys)
+		newpath := absAt(int(regs.Rdx), readString(pid, regs.R10), pid, pstate, sys)
 		sys.FS.Rename(oldpath, newpath)
 		fmt.Println(pid, "renameat", oldpath, newpath)
 	case syscall.SYS_DUP, syscall.SYS_DUP2, syscall.SYS_DUP3:
@@ -372,9 +375,26 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 	return true
 }
 
-func absAt(dirfd int, path string, pstate *ProcState, sys *SysState) string {
+func absAt(dirfd int, path string, pid int, pstate *ProcState, sys *SysState) string {
 	if dirfd == unix.AT_FDCWD {
-		return pstate.Abs(path)
+		path = pstate.Abs(path)
+	} else {
+		path = pstate.AbsAt(sys.FS.Path(pstate.FDs[dirfd]), path)
 	}
-	return pstate.AbsAt(sys.FS.Path(pstate.FDs[dirfd]), path)
+
+	// Resolve process-relative paths.
+	var fd int
+	_, err := fmt.Sscanf(path, "/dev/fd/%d", &fd)
+	if err != nil {
+		_, err = fmt.Sscanf(path, "/proc/self/fd/%d", &fd)
+	}
+	if err != nil {
+		return path
+	}
+
+	inode, ok := pstate.FDs[fd]
+	if !ok {
+		return fmt.Sprintf("/proc/%d/fd/%d", pid, fd)
+	}
+	return sys.FS.inodePath[inode]
 }
