@@ -3,8 +3,11 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path"
+	"sort"
+	"strings"
 
 	sh "github.com/djmitche/shquote"
 	"github.com/orivej/e"
@@ -26,9 +29,23 @@ func writeScript(dir string, cmd Cmd) {
 	fmt.Fprintln(buf, interp)
 	fmt.Fprintf(buf, "\ncd %s\n", sh.Quote(cmd.Dir))
 	if len(cmd.Env) != 0 {
-		fmt.Fprintf(buf, "\nexport %s\n", sh.QuoteList(cmd.Env))
+		writeEnv(buf, cmd.Env)
 	}
 	fmt.Fprintf(buf, "\n${exec:-%s} %s \"$@\"\n", exec, sh.QuoteList(cmdline))
 	err = buf.Flush()
 	e.Exit(err)
+}
+
+func writeEnv(buf io.Writer, env []string) {
+	env = append([]string{}, env...)
+	sort.Strings(env)
+	fmt.Fprintln(buf)
+	for _, entry := range env {
+		parts := strings.SplitN(entry, "=", 2)
+		if len(parts) < 2 {
+			fmt.Fprintf(buf, ": %s\n", sh.Quote(entry))
+		}
+		k, v := parts[0], parts[1]
+		fmt.Fprintf(buf, "export %s=%s\n", sh.Quote(k), sh.Quote(v))
+	}
 }
