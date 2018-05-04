@@ -64,11 +64,11 @@ func main() {
 	os.Stdout = f
 
 	sys := NewSysState()
-	cmdFDs := map[int]map[int]string{}
+	cmdFDs := map[int]map[int32]string{}
 	records := []Record{}
 
 	onExec := func(p *ProcState) {
-		fds := map[int]string{}
+		fds := map[int32]string{}
 		for fd, inode := range p.FDs {
 			if inode != 0 {
 				fds[fd] = sys.FS.Path(inode)
@@ -280,6 +280,7 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 	if ret < 0 {
 		return true
 	}
+	ret32 := int32(ret)
 	if pstate.Syscall == syscall.SYS_FCNTL {
 		switch regs.Rsi {
 		case syscall.F_DUPFD:
@@ -289,15 +290,15 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 			regs.Rdx = syscall.O_CLOEXEC
 		case syscall.F_SETFD:
 			b := regs.Rdx&syscall.FD_CLOEXEC != 0
-			pstate.FDCX[int(regs.Rdi)] = b
+			pstate.FDCX[int32(regs.Rdi)] = b
 			fmt.Println(pid, "fcntl/setfd", regs.Rdi, b)
 		}
 	}
 	switch pstate.Syscall {
 	case syscall.SYS_OPEN, syscall.SYS_OPENAT:
-		call, at, name, flags := "open", unix.AT_FDCWD, regs.Rdi, regs.Rsi
+		call, at, name, flags := "open", int32(unix.AT_FDCWD), regs.Rdi, regs.Rsi
 		if pstate.Syscall == syscall.SYS_OPENAT {
-			call, at, name, flags = "openat", int(regs.Rdi), regs.Rsi, regs.Rdx
+			call, at, name, flags = "openat", int32(regs.Rdi), regs.Rsi, regs.Rdx
 		}
 		path := absAt(at, readString(pid, name), pid, pstate, sys)
 		write := flags & (syscall.O_WRONLY | syscall.O_RDWR)
@@ -305,9 +306,9 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 			write = W
 		}
 		inode := sys.FS.Inode(path)
-		pstate.FDs[ret] = inode
+		pstate.FDs[ret32] = inode
 		if flags&syscall.O_CLOEXEC != 0 {
-			pstate.FDCX[ret] = true
+			pstate.FDCX[ret32] = true
 		}
 		fmt.Println(pid, call, write, path)
 		if pstate.IOs.Map[W].Has[inode] {
@@ -326,7 +327,7 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 		pstate.CurDir = path
 		fmt.Println(pid, "chdir", path)
 	case syscall.SYS_FCHDIR:
-		path := sys.FS.Path(pstate.FDs[int(regs.Rdi)])
+		path := sys.FS.Path(pstate.FDs[int32(regs.Rdi)])
 		pstate.CurDir = path
 		fmt.Println(pid, "fchdir", path)
 	case syscall.SYS_RENAME:
@@ -335,28 +336,28 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 		sys.FS.Rename(oldpath, newpath)
 		fmt.Println(pid, "rename", oldpath, newpath)
 	case syscall.SYS_RENAMEAT, unix.SYS_RENAMEAT2:
-		oldpath := absAt(int(regs.Rdi), readString(pid, regs.Rsi), pid, pstate, sys)
-		newpath := absAt(int(regs.Rdx), readString(pid, regs.R10), pid, pstate, sys)
+		oldpath := absAt(int32(regs.Rdi), readString(pid, regs.Rsi), pid, pstate, sys)
+		newpath := absAt(int32(regs.Rdx), readString(pid, regs.R10), pid, pstate, sys)
 		sys.FS.Rename(oldpath, newpath)
 		fmt.Println(pid, "renameat", oldpath, newpath)
 	case syscall.SYS_DUP, syscall.SYS_DUP2, syscall.SYS_DUP3:
-		pstate.FDs[ret] = pstate.FDs[int(regs.Rdi)]
+		pstate.FDs[ret32] = pstate.FDs[int32(regs.Rdi)]
 		if pstate.Syscall == syscall.SYS_DUP3 && regs.Rdx&syscall.O_CLOEXEC != 0 {
-			pstate.FDCX[ret] = true
+			pstate.FDCX[ret32] = true
 		}
-		fmt.Println(pid, "dup", regs.Rdi, ret, pstate.FDCX[ret])
+		fmt.Println(pid, "dup", regs.Rdi, ret32, pstate.FDCX[ret32])
 	case syscall.SYS_READ, syscall.SYS_PREAD64, syscall.SYS_READV, syscall.SYS_PREADV, unix.SYS_PREADV2:
-		inode := pstate.FDs[int(regs.Rdi)]
+		inode := pstate.FDs[int32(regs.Rdi)]
 		if inode != 0 && !pstate.IOs.Map[W].Has[inode] {
 			pstate.IOs.Map[R].Add(inode)
 		}
 	case syscall.SYS_WRITE, syscall.SYS_PWRITE64, syscall.SYS_WRITEV, syscall.SYS_PWRITEV, unix.SYS_PWRITEV2:
-		inode := pstate.FDs[int(regs.Rdi)]
+		inode := pstate.FDs[int32(regs.Rdi)]
 		if inode != 0 {
 			pstate.IOs.Map[W].Add(inode)
 		}
 	case syscall.SYS_CLOSE:
-		n := int(regs.Rdi)
+		n := int32(regs.Rdi)
 		pstate.FDs[n] = 0
 		delete(pstate.FDCX, n)
 		fmt.Println(pid, "close", regs.Rdi)
@@ -364,8 +365,8 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 		var buf [8]byte
 		_, err := syscall.PtracePeekData(pid, uintptr(regs.Rdi), buf[:])
 		e.Exit(err)
-		readfd := int(binary.LittleEndian.Uint32(buf[:4]))
-		writefd := int(binary.LittleEndian.Uint32(buf[4:]))
+		readfd := int32(binary.LittleEndian.Uint32(buf[:4]))
+		writefd := int32(binary.LittleEndian.Uint32(buf[4:]))
 		inode := sys.FS.Pipe()
 		pstate.FDs[readfd], pstate.FDs[writefd] = inode, inode
 		if regs.Rsi&syscall.O_CLOEXEC != 0 {
@@ -376,7 +377,7 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 	return true
 }
 
-func absAt(dirfd int, path string, pid int, pstate *ProcState, sys *SysState) string {
+func absAt(dirfd int32, path string, pid int, pstate *ProcState, sys *SysState) string {
 	if dirfd == unix.AT_FDCWD {
 		path = pstate.Abs(path)
 	} else {
@@ -388,7 +389,7 @@ func absAt(dirfd int, path string, pid int, pstate *ProcState, sys *SysState) st
 		path = "/proc/self/fd/" + path[len("/dev/fd/"):]
 	}
 	if strings.HasPrefix(path, "/proc/self/") {
-		var fd int
+		var fd int32
 		if _, err := fmt.Sscanf(path, "/proc/self/fd/%d", &fd); err == nil {
 			if inode, ok := pstate.FDs[fd]; ok {
 				return sys.FS.Path(inode)

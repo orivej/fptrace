@@ -71,6 +71,6 @@ func (p *Proc) Exec(ps *ProcState) {
 			delete(ps.FDs, n)
 		}
 	}
-	ps.FDCX = make(map[int]bool)
+	ps.FDCX = make(map[int32]bool)
 	ps.CurCmd = ps.NextCmd
 }
