@@ -61,7 +61,7 @@ func resume(pid, signal int) {
 	e.Print(err)
 }
 
-func waitForSyscall() (int, int, bool) {
+func waitForSyscall() (pid, trapcause int, alive bool) {
 	var wstatus syscall.WaitStatus
 	for {
 		pid, err := syscall.Wait4(-1, &wstatus, syscall.WALL, nil)
