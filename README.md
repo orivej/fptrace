@@ -80,7 +80,7 @@ go get github.com/orivej/fptrace
 go generate github.com/orivej/fptrace
 ```
 
-On NixOS:
+With [Nix](https://nixos.org/nix/):
 ```sh
 nix-env -if https://github.com/orivej/fptrace/archive/master.tar.gz
 ```
