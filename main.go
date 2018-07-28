@@ -14,9 +14,10 @@ import (
 
 	"github.com/orivej/e"
 	"golang.org/x/sys/unix"
+	"golang.org/x/text/collate"
+	"golang.org/x/text/language"
 )
 
-const PTRACE_O_EXITKILL = 1 << 20 // since Linux 3.8
 const R = 0
 const W = 1
 
@@ -35,6 +36,10 @@ var (
 	flUndelete = flag.Bool("u", false, "undelete files")
 )
 
+var withSeccomp, oldSeccomp bool
+
+var vercmp = collate.New(language.English, collate.Numeric)
+
 func main() {
 	flTrace := flag.String("t", "/dev/null", "trace output file")
 	flTracee := flag.String("tracee", tracee, "tracee command")
@@ -42,8 +47,12 @@ func main() {
 	flDepsWithOutput := flag.Bool("do", false, "output only deps with outputs")
 	flScripts := flag.String("s", "", "scripts output dir")
 	flRm := flag.Bool("rm", false, "clean up scripts output dir")
+	flSeccomp := flag.Bool("seccomp", true, "trace with seccomp (if kernel >= 3.5)")
+	flKernel := flag.String("kernel", kernelRelease(), "kernel release (for seccomp)")
 	flag.Parse()
 	e.Output = os.Stderr
+	withSeccomp = *flSeccomp && vercmp.CompareString(*flKernel, "3.5") >= 0
+	oldSeccomp = vercmp.CompareString(*flKernel, "4.8") < 0
 
 	args := flag.Args()
 	runtime.LockOSThread()
@@ -180,7 +189,7 @@ func mainLoop(sys *SysState, mainPID int, onExec func(*ProcState), onExit func(*
 			// Resume suspended.
 			if newstatus, ok := suspended[newpid]; ok {
 				delete(suspended, newpid)
-				resume(pid, 0)
+				resume(pid, 0, pstate.SysEnter)
 				fmt.Println(newpid, "_resume")
 				pid, trapCause, pstate = newpid, newstatus, pstates[newpid]
 				goto wstatusSwitch
@@ -204,6 +213,15 @@ func mainLoop(sys *SysState, mainPID int, onExec func(*ProcState), onExit func(*
 		case syscall.PTRACE_EVENT_EXIT:
 			term(pid)
 			fmt.Println(pid, "_exit")
+		case unix.PTRACE_EVENT_SECCOMP:
+			if pstate.SysEnter {
+				panic("seccomp trace event during syscall")
+			}
+			if oldSeccomp {
+				resume(pid, 0, true)
+				continue
+			}
+			fallthrough
 		case 0:
 			// Toggle edge.
 			pstate.SysEnter = !pstate.SysEnter
@@ -223,7 +241,7 @@ func mainLoop(sys *SysState, mainPID int, onExec func(*ProcState), onExit func(*
 		default:
 			panic("unexpected trap cause")
 		}
-		resume(pid, 0)
+		resume(pid, 0, pstate.SysEnter)
 	}
 }
 
@@ -398,4 +416,18 @@ func absAt(dirfd int32, path string, pid int, pstate *ProcState, sys *SysState) 
 		return strings.Replace(path, "self", strconv.Itoa(pid), 1)
 	}
 	return path
+}
+
+func kernelRelease() string {
+	var uname syscall.Utsname
+	err := syscall.Uname(&uname)
+	e.Exit(err)
+	b := []byte{}
+	for _, c := range uname.Release {
+		if c == 0 {
+			break
+		}
+		b = append(b, byte(c))
+	}
+	return string(b)
 }

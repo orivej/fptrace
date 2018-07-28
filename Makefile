@@ -1,7 +1,6 @@
 BIN_TARGETS = fptrace $(TRACEE)
 TEST_TARGETS = $(TESTCMD) $(SEGFAULT)
-TEST_TEMPS = a b c
-OBJECT_FILES = */*.o
+TEMPS = a b c *.h */*.o
 
 TRACEE = ./_fptracee
 TESTCMD = testcmd/testcmd
@@ -12,12 +11,13 @@ DESTDIR ?= $(shell bash -c 'GOPATH=$$(go env GOPATH); echo $${GOBIN:-$${GOPATH/:
 default: compile
 
 clean:
-	rm -f $(BIN_TARGETS) $(TEST_TARGETS) $(TEST_TEMPS) $(OBJECT_FILES)
+	rm -f $(BIN_TARGETS) $(TEST_TARGETS) $(TEMPS)
 
 compile: $(BIN_TARGETS)
 
 test: $(BIN_TARGETS) $(TEST_TARGETS)
 	./fptrace -tracee $(TRACEE) -d /dev/stdout $(TESTCMD)
+	./fptrace -tracee $(TRACEE) -d /dev/stdout -seccomp=false $(TESTCMD)
 	./fptrace -tracee $(TRACEE) -t /dev/stdout $(SEGFAULT)
 
 install: $(BIN_TARGETS)
@@ -26,3 +26,8 @@ install: $(BIN_TARGETS)
 
 fptrace: *.go
 	go build -o $@
+
+$(TRACEE): seccomp.h
+
+seccomp.h: seccomp.go
+	go run seccomp.go

@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/orivej/e"
+	"golang.org/x/sys/unix"
 )
 
 var errTraceeExited = errors.New("tracee failed to start")
@@ -56,9 +57,14 @@ func readStrings(pid int, addr uint64) []string {
 	}
 }
 
-func resume(pid, signal int) {
-	err := syscall.PtraceSyscall(pid, signal)
-	e.Print(err)
+func resume(pid, signal int, duringSyscall bool) {
+	if duringSyscall || !withSeccomp {
+		err := syscall.PtraceSyscall(pid, signal)
+		e.Print(err)
+	} else {
+		err := syscall.PtraceCont(pid, signal)
+		e.Print(err)
+	}
 }
 
 func waitForSyscall() (pid, trapcause int, alive bool) {
@@ -74,7 +80,7 @@ func waitForSyscall() (pid, trapcause int, alive bool) {
 		case wstatus.Exited() || wstatus.Signaled():
 			return pid, 0, false
 		case wstatus.Stopped():
-			resume(pid, int(wstatus.StopSignal()))
+			resume(pid, int(wstatus.StopSignal()), false)
 		default:
 			panic(wstatus)
 		}
@@ -82,6 +88,10 @@ func waitForSyscall() (pid, trapcause int, alive bool) {
 }
 
 func trace(tracee string, argv []string) (int, error) {
+	argv = append([]string{"--"}, argv...)
+	if withSeccomp {
+		argv = append([]string{"-seccomp"}, argv...)
+	}
 	cmd := exec.Command(tracee, argv...) //#nosec
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -101,7 +111,9 @@ func trace(tracee string, argv []string) (int, error) {
 		return 0, errTraceeExited
 	}
 
-	err = syscall.PtraceSetOptions(pid, PTRACE_O_EXITKILL|
+	err = syscall.PtraceSetOptions(pid, 0|
+		unix.PTRACE_O_EXITKILL|
+		unix.PTRACE_O_TRACESECCOMP|
 		syscall.PTRACE_O_TRACESYSGOOD|
 		syscall.PTRACE_O_TRACEEXEC|
 		syscall.PTRACE_O_TRACEEXIT|
@@ -112,6 +124,6 @@ func trace(tracee string, argv []string) (int, error) {
 		return 0, err
 	}
 
-	resume(pid, 0)
+	resume(pid, 0, false)
 	return pid, nil
 }
