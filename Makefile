@@ -7,7 +7,7 @@ TRACEE = ./_fptracee
 TESTCMD = testcmd/testcmd
 SEGFAULT = testcmd/segfault
 
-DESTDIR ?= $(shell echo "$${GOBIN:-$${GOPATH/:*/}/bin}")
+DESTDIR ?= $(shell bash -c 'GOPATH=$$(go env GOPATH); echo $${GOBIN:-$${GOPATH/:*/}/bin}')
 
 default: compile
 
