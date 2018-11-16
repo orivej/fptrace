@@ -112,7 +112,7 @@ func main() {
 		records = append(records, r)
 	}
 
-	mainLoop(sys, pid, onExec, onExit)
+	rc := mainLoop(sys, pid, onExec, onExit)
 
 	if *flDeps != "" {
 		f, err := os.Create(*flDeps)
@@ -121,11 +121,14 @@ func main() {
 		err = json.NewEncoder(f).Encode(records)
 		e.Exit(err)
 	}
+
+	os.Exit(rc)
 }
 
-func mainLoop(sys *SysState, mainPID int, onExec func(*ProcState), onExit func(*ProcState)) {
+func mainLoop(sys *SysState, mainPID int, onExec func(*ProcState), onExit func(*ProcState)) int {
 	var err error
 	pstates := map[int]*ProcState{}
+	mainCode := 0
 
 	p := NewProcState()
 	p.CurDir, err = os.Getwd()
@@ -148,12 +151,12 @@ func mainLoop(sys *SysState, mainPID int, onExec func(*ProcState), onExit func(*
 	for {
 		pid, trapCause, ok := waitForSyscall()
 		if !ok {
-			// Linux may fail to report PTRACE_EVENT_EXIT.
-			term(pid)
-
+			term(pid) // Linux may fail to report PTRACE_EVENT_EXIT.
+			if mainPID == pid {
+				mainPID, mainCode = 0, trapCause // Preserve exit status.
+			}
 			if len(running) == 0 {
-				// Exit with the last process.
-				break
+				return mainCode // Exit with the last process.
 			}
 			continue
 		}

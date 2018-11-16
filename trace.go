@@ -73,16 +73,16 @@ func waitForSyscall() (pid, trapcause int, alive bool) {
 		pid, err := syscall.Wait4(-1, &wstatus, syscall.WALL, nil)
 		e.Exit(err)
 		switch {
-		case wstatus.Stopped() && wstatus.StopSignal()&0x80 != 0:
+		case wstatus.Exited(): // Normal exit.
+			return pid, wstatus.ExitStatus(), false
+		case wstatus.Signaled(): // Signal exit.
+			return pid, 128 + int(wstatus.Signal()), false
+		case wstatus.StopSignal()&0x80 != 0: // Ptrace stop.
 			return pid, 0, true
-		case wstatus.Stopped() && wstatus.TrapCause() > 0:
+		case wstatus.TrapCause() > 0: // SIGTRAP stop.
 			return pid, wstatus.TrapCause(), true
-		case wstatus.Exited() || wstatus.Signaled():
-			return pid, 0, false
-		case wstatus.Stopped():
+		default: // Another signal stop (e.g. SIGSTOP).
 			resume(pid, int(wstatus.StopSignal()), false)
-		default:
-			panic(wstatus)
 		}
 	}
 }
