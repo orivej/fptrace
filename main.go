@@ -154,7 +154,7 @@ func mainLoop(sys *SysState, mainPID int, onExec func(*ProcState), onExit func(*
 	for {
 		pid, trapCause, ok := waitForSyscall()
 		if !ok {
-			term(pid) // Linux may fail to report PTRACE_EVENT_EXIT.
+			term(pid)
 			if mainPID == pid {
 				mainPID, mainRC = 0, trapCause // Preserve exit status.
 			}
@@ -201,6 +201,7 @@ func mainLoop(sys *SysState, mainPID int, onExec func(*ProcState), onExit func(*
 				goto wstatusSwitch
 			}
 		case syscall.PTRACE_EVENT_EXEC:
+			term(pid)
 			uoldpid, err := syscall.PtraceGetEventMsg(pid)
 			e.Exit(err)
 			oldpid := int(uoldpid)
@@ -216,9 +217,6 @@ func mainLoop(sys *SysState, mainPID int, onExec func(*ProcState), onExit func(*
 			pstates[pid] = pstate
 			running[pid] = true
 			fmt.Println(oldpid, "_exec", pid)
-		case syscall.PTRACE_EVENT_EXIT:
-			term(pid)
-			fmt.Println(pid, "_exit")
 		case unix.PTRACE_EVENT_SECCOMP:
 			if pstate.SysEnter {
 				panic("seccomp trace event during syscall")

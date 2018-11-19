@@ -116,7 +116,6 @@ func trace(tracee string, argv []string) (int, error) {
 		unix.PTRACE_O_TRACESECCOMP|
 		syscall.PTRACE_O_TRACESYSGOOD|
 		syscall.PTRACE_O_TRACEEXEC|
-		syscall.PTRACE_O_TRACEEXIT|
 		syscall.PTRACE_O_TRACECLONE|
 		syscall.PTRACE_O_TRACEFORK|
 		syscall.PTRACE_O_TRACEVFORK)
