@@ -122,13 +122,16 @@ func main() {
 		e.Exit(err)
 	}
 
+	if rc < 0 {
+		os.Exit(128 - rc) // Signum + 128 on death by signal.
+	}
 	os.Exit(rc)
 }
 
 func mainLoop(sys *SysState, mainPID int, onExec func(*ProcState), onExit func(*ProcState)) int {
 	var err error
 	pstates := map[int]*ProcState{}
-	mainCode := 0
+	mainRC := 0
 
 	p := NewProcState()
 	p.CurDir, err = os.Getwd()
@@ -153,10 +156,10 @@ func mainLoop(sys *SysState, mainPID int, onExec func(*ProcState), onExit func(*
 		if !ok {
 			term(pid) // Linux may fail to report PTRACE_EVENT_EXIT.
 			if mainPID == pid {
-				mainPID, mainCode = 0, trapCause // Preserve exit status.
+				mainPID, mainRC = 0, trapCause // Preserve exit status.
 			}
 			if len(running) == 0 {
-				return mainCode // Exit with the last process.
+				return mainRC // Exit with the last process.
 			}
 			continue
 		}

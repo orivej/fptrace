@@ -76,7 +76,7 @@ func waitForSyscall() (pid, trapcause int, alive bool) {
 		case wstatus.Exited(): // Normal exit.
 			return pid, wstatus.ExitStatus(), false
 		case wstatus.Signaled(): // Signal exit.
-			return pid, 128 + int(wstatus.Signal()), false
+			return pid, -int(wstatus.Signal()), false
 		case wstatus.StopSignal()&0x80 != 0: // Ptrace stop.
 			return pid, 0, true
 		case wstatus.TrapCause() > 0: // SIGTRAP stop.
