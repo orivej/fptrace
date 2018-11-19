@@ -18,7 +18,7 @@ compile: $(BIN_TARGETS)
 test: $(BIN_TARGETS) $(TEST_TARGETS)
 	./fptrace -tracee $(TRACEE) -d /dev/stdout $(TESTCMD)
 	./fptrace -tracee $(TRACEE) -d /dev/stdout -seccomp=false $(TESTCMD)
-	./fptrace -tracee $(TRACEE) -t /dev/stdout $(SEGFAULT)
+	! ./fptrace -tracee $(TRACEE) -t /dev/stdout $(SEGFAULT)
 
 install: $(BIN_TARGETS)
 	mkdir -p $(DESTDIR)
