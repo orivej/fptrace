@@ -25,7 +25,7 @@ type ProcState struct {
 	SysEnter bool           // true on enter to syscall
 	Syscall  int            // call number on exit from syscall
 	CurDir   string         // working directory
-	CurCmd   Cmd            // current command
+	CurCmd   *Cmd           // current command
 	NextCmd  Cmd            // command after return from execve
 	FDs      map[int32]int  // map fds to inodes
 	FDCX     map[int32]bool // cloexec fds
@@ -97,7 +97,7 @@ func (ps *ProcState) Clone(cloneFiles bool) *ProcState {
 }
 
 func (ps *ProcState) Record(sys *SysState) Record {
-	r := Record{Cmd: ps.CurCmd, Inputs: []string{}, Outputs: []string{}}
+	r := Record{Cmd: *ps.CurCmd, Inputs: []string{}, Outputs: []string{}}
 	for output, inodes := range ps.IOs.Map {
 		paths := &r.Inputs
 		if output == W {

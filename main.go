@@ -96,7 +96,7 @@ func main() {
 		onExec0 := onExec
 		onExec = func(p *ProcState) {
 			onExec0(p)
-			writeScript(*flScripts, p.CurCmd)
+			writeScript(*flScripts, *p.CurCmd)
 		}
 	}
 
@@ -252,9 +252,9 @@ func mainLoop(sys *SysState, mainPID int, onExec func(*ProcState), onExit func(*
 }
 
 func terminate(pid int, pstate *ProcState, onExit func(p *ProcState)) {
-	if pstate.IOs.Cnt == 1 && pstate.CurCmd.ID != 0 {
+	if pstate.IOs.Cnt == 1 && pstate.CurCmd != nil {
 		onExit(pstate)
-		fmt.Println(pid, "record", pstate.CurCmd)
+		fmt.Println(pid, "record", *pstate.CurCmd)
 	}
 	pstate.ResetIOs()
 }
