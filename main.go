@@ -144,6 +144,7 @@ func mainLoop(sys *SysState, mainPID int, onExec func(*ProcState), onExit func(*
 	suspended := map[int]int{}
 	terminated := map[int]bool{}
 	running := map[int]bool{mainPID: true}
+	pidcmds := map[int]*Cmd{} // Map main PID of each execution to its Cmd.
 	term := func(pid int) {
 		if !terminated[pid] {
 			terminate(pid, pstates[pid], onExit)
@@ -154,7 +155,11 @@ func mainLoop(sys *SysState, mainPID int, onExec func(*ProcState), onExit func(*
 	for {
 		pid, trapCause, ok := waitForSyscall()
 		if !ok {
+			if cmd := pidcmds[pid]; cmd != nil {
+				cmd.Exit = trapCause
+			}
 			term(pid)
+			delete(pidcmds, pid)
 			if mainPID == pid {
 				mainPID, mainRC = 0, trapCause // Preserve exit status.
 			}
@@ -201,6 +206,9 @@ func mainLoop(sys *SysState, mainPID int, onExec func(*ProcState), onExit func(*
 				goto wstatusSwitch
 			}
 		case syscall.PTRACE_EVENT_EXEC:
+			if cmd := pidcmds[pid]; cmd != nil {
+				cmd.Exec = sys.Proc.NextID()
+			}
 			term(pid)
 			uoldpid, err := syscall.PtraceGetEventMsg(pid)
 			e.Exit(err)
@@ -212,6 +220,7 @@ func mainLoop(sys *SysState, mainPID int, onExec func(*ProcState), onExit func(*
 			term(oldpid)
 			delete(terminated, pid)
 			sys.Proc.Exec(pstate)
+			pidcmds[pid] = pstate.CurCmd
 			onExec(pstate)
 			pstate.SysEnter = true
 			pstates[pid] = pstate

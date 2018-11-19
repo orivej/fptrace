@@ -14,6 +14,8 @@ type IOs struct {
 type Cmd struct {
 	Parent int // parent Cmd ID
 	ID     int // Cmd ID, changes only with execve
+	Exit   int `json:",omitempty"` // Exit code of the first process (or 0-signal),
+	Exec   int `json:",omitempty"` // or ID of the Cmd executed by the first process
 
 	Dir  string
 	Path string

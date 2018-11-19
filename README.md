@@ -4,7 +4,7 @@
 
 # `deps.json`
 
-`fptrace -d deps.json sh -c 'echo a > a; cat a | tee b'` in `/tmp` makes:
+`fptrace -d deps.json sh -c 'echo a > a; cat a | tee b; exec test -d a'` in `/tmp` makes:
 
 ```json
 [
@@ -20,19 +20,28 @@
   {
     "Cmd": {
       "Parent": 1, "ID": 3,
-      "Dir": "/tmp", "Path": "/usr/bin/tee", "Args": ["tee", "b"],
+      "Dir": "/tmp", "Path": "/usr/bin/tee", "Args": ["tee", "b"]
     },
-    "Inputs": ["/dev/fptrace/pipe/1", "/etc/ld.so.cache", "/lib/x86_64-linux-gnu/libc.so.6"],
-    "Outputs": ["/dev/stdout", "/tmp/b"],
+    "Inputs": ["/etc/ld.so.cache", "/lib/x86_64-linux-gnu/libc.so.6", "/dev/fptrace/pipe/1"],
+    "Outputs": ["/tmp/b", "/dev/stdout"],
     "FDs": {"0": "/dev/fptrace/pipe/1", "1": "/dev/stdout", "2": "/dev/stderr"}
   },
   {
     "Cmd": {
-      "Parent": 0, "ID": 1,
-      "Dir": "/tmp", "Path": "/bin/sh", "Args": ["sh", "-c", "echo a > a; cat a | tee b"],
+      "Parent": 0, "ID": 1, "Exec": 4,
+      "Dir": "/tmp", "Path": "/bin/sh", "Args": ["sh", "-c", "echo a > a; cat a | tee b; exec false"]
     },
     "Inputs": ["/etc/ld.so.cache", "/lib/x86_64-linux-gnu/libc.so.6"],
     "Outputs": ["/tmp/a"],
+    "FDs": {"0": "/dev/stdin", "1": "/dev/stdout", "2": "/dev/stderr"}
+  },
+  {
+    "Cmd": {
+      "Parent": 1, "ID": 4, "Exit": 1,
+      "Dir": "/tmp", "Path": "/bin/false", "Args": ["false"]
+    },
+    "Inputs": ["/etc/ld.so.cache", "/lib/x86_64-linux-gnu/libc.so.6"],
+    "Outputs": [],
     "FDs": {"0": "/dev/stdin", "1": "/dev/stdout", "2": "/dev/stderr"}
   }
 ]
@@ -42,6 +51,8 @@ The result is a list of command executions (ordered by the time of their exit): 
 
 - `ID` is a unique execution identifier (counting from 1)
 - `Parent` is the `ID` of the execution that spawned it
+- `Exit` is the exit code of the first process of the execution (omitted if zero, negative on death by signal)
+- `Exec` is the ID of next execution, if the first process has spawned it before the exit
 - `Dir` is the initial working directory
 - `Path` is an absolute path to the executable
 - `Args` are `execve` arguments

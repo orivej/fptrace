@@ -62,6 +62,10 @@ func NewProc() *Proc {
 	return &Proc{}
 }
 
+func (p *Proc) NextID() int {
+	return p.lastID + 1
+}
+
 func (p *Proc) Exec(ps *ProcState) {
 	cmd := ps.NextCmd
 	if ps.CurCmd != nil {
