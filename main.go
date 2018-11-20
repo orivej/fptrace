@@ -241,7 +241,7 @@ func mainLoop(sys *SysState, mainPID int, onExec func(*ProcState), onExit func(*
 
 			var ok bool
 			if pstate.SysEnter {
-				ok = sysenter(pid, pstate)
+				ok = sysenter(pid, pstate, sys)
 			} else {
 				ok = sysexit(pid, pstate, sys)
 			}
@@ -266,7 +266,7 @@ func terminate(pid int, pstate *ProcState, onExit func(p *ProcState)) {
 	pstate.ResetIOs()
 }
 
-func sysenter(pid int, pstate *ProcState) bool {
+func sysenter(pid int, pstate *ProcState, sys *SysState) bool {
 	regs, ok := getRegs(pid)
 	if !ok {
 		return false
@@ -283,6 +283,16 @@ func sysenter(pid int, pstate *ProcState) bool {
 			pstate.NextCmd.Env = readStrings(pid, regs.Rdx)
 		}
 		fmt.Println(pid, "execve", pstate.NextCmd)
+	case unix.SYS_EXECVEAT:
+		pstate.NextCmd = Cmd{
+			Path: absAt(int32(regs.Rdi), readString(pid, regs.Rsi), pid, pstate, sys),
+			Args: readStrings(pid, regs.Rdx),
+			Dir:  pstate.CurDir,
+		}
+		if *flEnv {
+			pstate.NextCmd.Env = readStrings(pid, regs.R10)
+		}
+		fmt.Println(pid, "execveat", pstate.NextCmd)
 	case syscall.SYS_UNLINK, syscall.SYS_RMDIR:
 		if *flUndelete {
 			regs.Orig_rax = syscall.SYS_ACCESS
@@ -409,9 +419,12 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 }
 
 func absAt(dirfd int32, path string, pid int, pstate *ProcState, sys *SysState) string {
-	if dirfd == unix.AT_FDCWD {
+	switch {
+	case dirfd == unix.AT_FDCWD:
 		path = pstate.Abs(path)
-	} else {
+	case path == "": // AT_EMPTY_PATH
+		path = sys.FS.Path(pstate.FDs[dirfd])
+	default:
 		path = pstate.AbsAt(sys.FS.Path(pstate.FDs[dirfd]), path)
 	}
 

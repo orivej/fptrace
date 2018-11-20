@@ -8,9 +8,18 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#ifndef SYS_execveat
+#define SYS_execveat 322
+#endif
+
 int execer(void *arg) {
-    execlp("cp", "cp", "../b", "../a", NULL);
-    perror("execlp");
+    int fd = open("/usr/bin/env", O_PATH|O_CLOEXEC);
+    if (fd < 0) {
+        perror("open /usr/bin/env");
+    }
+    char *argv[] = {"env", "cp", "../b", "../a"};
+    syscall(SYS_execveat, fd, "", argv, NULL, AT_EMPTY_PATH);
+    perror("execveat");
 }
 
 int main() {

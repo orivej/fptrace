@@ -23,6 +23,7 @@ var syscalls = []uint32{
 	unix.SYS_DUP2,
 	unix.SYS_DUP3,
 	unix.SYS_EXECVE,
+	unix.SYS_EXECVEAT,
 	unix.SYS_FCHDIR,
 	unix.SYS_FCNTL,
 	unix.SYS_OPEN,
