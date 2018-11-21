@@ -1,6 +1,6 @@
 # Introduction
 
-`fptrace` is a Linux process tracing tool that records process launches and file accesses.  Results can be saved in a `deps.json` file or used to generate launcher scripts.  It works like `strace` but produces machine readable output and resolves relative pathnames into absolute ones.  Optionally it also records environment variables and prevents deletions.
+`fptrace` is a Linux process tracing tool that records process launches and file accesses.  Results can be saved in a `deps.json` file or used to generate launcher scripts.  It works like `strace` but produces machine readable output and resolves relative pathnames into absolute ones.  Optionally it also records environment variables and prevents deletions.  It incurs much less overhead than `strace` thanks to seccomp filtering.
 
 # `deps.json`
 
