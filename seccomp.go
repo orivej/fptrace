@@ -26,6 +26,8 @@ var syscalls = []uint32{
 	unix.SYS_EXECVEAT,
 	unix.SYS_FCHDIR,
 	unix.SYS_FCNTL,
+	unix.SYS_LINK,
+	unix.SYS_LINKAT,
 	unix.SYS_OPEN,
 	unix.SYS_OPENAT,
 	unix.SYS_PIPE,

@@ -371,6 +371,24 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 		path := sys.FS.Path(pstate.FDs[int32(regs.Rdi)])
 		pstate.CurDir = path
 		fmt.Println(pid, "fchdir", path)
+	case syscall.SYS_LINK:
+		oldpath := pstate.Abs(readString(pid, regs.Rdi))
+		newpath := pstate.Abs(readString(pid, regs.Rsi))
+		oldnode := sys.FS.Inode(oldpath)
+		if !pstate.IOs.Map[W].Has[oldnode] {
+			pstate.IOs.Map[R].Add(oldnode)
+		}
+		pstate.IOs.Map[W].Add(sys.FS.Inode(newpath))
+		fmt.Println(pid, "link", oldpath, newpath)
+	case syscall.SYS_LINKAT:
+		oldpath := absAt(int32(regs.Rdi), readString(pid, regs.Rsi), pid, pstate, sys)
+		newpath := absAt(int32(regs.Rdx), readString(pid, regs.R10), pid, pstate, sys)
+		oldnode := sys.FS.Inode(oldpath)
+		if !pstate.IOs.Map[W].Has[oldnode] {
+			pstate.IOs.Map[R].Add(oldnode)
+		}
+		pstate.IOs.Map[W].Add(sys.FS.Inode(newpath))
+		fmt.Println(pid, "linkat", oldpath, newpath)
 	case syscall.SYS_RENAME:
 		oldpath := pstate.Abs(readString(pid, regs.Rdi))
 		newpath := pstate.Abs(readString(pid, regs.Rsi))
