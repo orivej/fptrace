@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -44,7 +45,8 @@ func main() {
 	flTrace := flag.String("t", "/dev/null", "trace output `file`")
 	flTracee := flag.String("tracee", tracee, "tracee `command`")
 	flDeps := flag.String("d", "", "deps output `file`")
-	flDepsWithOutput := flag.Bool("do", false, "output only deps with outputs")
+	flDepsWithOutput := flag.Bool("do", false, "output deps with outputs")
+	flDepsWithExec := StringSliceSetFlag("dn", "output deps of `command`(s)")
 	flScripts := flag.String("s", "", "scripts output `dir`")
 	flRm := flag.Bool("rm", false, "clean up scripts output dir")
 	flSeccomp := flag.Bool("seccomp", true, "trace with seccomp (if kernel >= 3.5)")
@@ -100,11 +102,15 @@ func main() {
 		}
 	}
 
+	needOutput := *flDepsWithOutput
+	execs := flDepsWithExec.Has
+	needExec := len(execs) > 0
 	onExit := func(p *ProcState) {
 		r := p.Record(sys)
-		no := len(r.Outputs)
-		noOutputs := no == 0 || (no == 1 && r.Outputs[0] == "/dev/tty")
-		if *flDepsWithOutput && noOutputs {
+		n := len(r.Outputs)
+		if (needOutput || needExec) &&
+			(!needOutput || n == 0 || n == 1 && r.Outputs[0] == "/dev/tty") &&
+			(!needExec || !execs[r.Cmd.Path] && !execs[filepath.Base(r.Cmd.Path)]) {
 			return
 		}
 		r.FDs = cmdFDs[p.CurCmd.ID]

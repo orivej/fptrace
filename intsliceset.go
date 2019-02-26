@@ -12,9 +12,9 @@ func NewIntSliceSet() IntSliceSet {
 	}
 }
 
-func (iss *IntSliceSet) Add(x int) {
-	if !iss.Has[x] {
-		iss.Slice = append(iss.Slice, x)
-		iss.Has[x] = true
+func (ss *IntSliceSet) Add(x int) {
+	if !ss.Has[x] {
+		ss.Slice = append(ss.Slice, x)
+		ss.Has[x] = true
 	}
 }
