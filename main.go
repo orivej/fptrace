@@ -41,11 +41,11 @@ var withSeccomp, oldSeccomp bool
 var vercmp = collate.New(language.English, collate.Numeric)
 
 func main() {
-	flTrace := flag.String("t", "/dev/null", "trace output file")
-	flTracee := flag.String("tracee", tracee, "tracee command")
-	flDeps := flag.String("d", "", "deps output file")
+	flTrace := flag.String("t", "/dev/null", "trace output `file`")
+	flTracee := flag.String("tracee", tracee, "tracee `command`")
+	flDeps := flag.String("d", "", "deps output `file`")
 	flDepsWithOutput := flag.Bool("do", false, "output only deps with outputs")
-	flScripts := flag.String("s", "", "scripts output dir")
+	flScripts := flag.String("s", "", "scripts output `dir`")
 	flRm := flag.Bool("rm", false, "clean up scripts output dir")
 	flSeccomp := flag.Bool("seccomp", true, "trace with seccomp (if kernel >= 3.5)")
 	flKernel := flag.String("kernel", kernelRelease(), "kernel release (for seccomp)")
