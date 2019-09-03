@@ -27,10 +27,10 @@ func writeScript(dir string, cmd Cmd) {
 	}
 	buf := bufio.NewWriter(f)
 	fmt.Fprintln(buf, interp)
-	fmt.Fprintf(buf, "\ncd %s\n", sh.Quote(cmd.Dir))
 	if len(cmd.Env) != 0 {
 		writeEnv(buf, cmd.Env)
 	}
+	fmt.Fprintf(buf, "\ncd %s\n", sh.Quote(cmd.Dir))
 	fmt.Fprintf(buf, "\n${exec:-%s} %s \"$@\"\n", exec, sh.QuoteList(cmdline))
 	err = buf.Flush()
 	e.Exit(err)
