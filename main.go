@@ -347,7 +347,13 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 		if pstate.Syscall == syscall.SYS_OPENAT {
 			call, at, name, flags = "openat", int32(regs.Rdi), regs.Rsi, regs.Rdx
 		}
-		path := absAt(at, readString(pid, name), pid, pstate, sys)
+		var path string
+		switch {
+		default:
+			path = absAt(at, readString(pid, name), pid, pstate, sys)
+		case flags&unix.O_TMPFILE != 0:
+			path = fmt.Sprintf("/proc/%d/fd/%d", pid, ret32)
+		}
 		write := flags & (syscall.O_WRONLY | syscall.O_RDWR)
 		if write != 0 {
 			write = W
