@@ -22,6 +22,8 @@ import (
 const R = 0
 const W = 1
 
+const O_TMPFILE = 0x400000 // unix.O_TMPFILE also sets O_DIRECTORY.
+
 var importpath = "github.com/orivej/fptrace"
 var tracee = "_fptracee"
 
@@ -351,7 +353,7 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 		switch {
 		default:
 			path = absAt(at, readString(pid, name), pid, pstate, sys)
-		case flags&unix.O_TMPFILE != 0:
+		case flags&O_TMPFILE != 0:
 			path = fmt.Sprintf("/proc/%d/fd/%d", pid, ret32)
 		}
 		write := flags & (syscall.O_WRONLY | syscall.O_RDWR)
