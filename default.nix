@@ -5,6 +5,8 @@ buildGoPackage rec {
   src = ./.;
   goDeps = ./deps.nix;
   goPackagePath = "github.com/orivej/fptrace";
+  outputs = [ "out" ];
+  bin = placeholder "out";
   preBuild = ''
     mkdir -p $out/bin
     ( cd go/src/$goPackagePath; go run seccomp.go )
