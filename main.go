@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -50,11 +51,14 @@ func main() {
 	flScripts := flag.String("s", "", "scripts output `dir`")
 	flRm := flag.Bool("rm", false, "clean up scripts output dir")
 	flSeccomp := flag.Bool("seccomp", true, "trace with seccomp (if kernel >= 3.5)")
-	flKernel := flag.String("kernel", kernelRelease(), "kernel release (for seccomp)")
+	flKernel := flag.String("kernel", kernelRelease(), "kernel release")
 	flag.Parse()
 	e.Output = os.Stderr
 	withSeccomp = *flSeccomp && vercmp.CompareString(*flKernel, "3.5") >= 0
 	oldSeccomp = vercmp.CompareString(*flKernel, "4.8") < 0
+	if strings.HasPrefix(*flKernel, "4.4.0-") {
+		e.Exit(errors.New("Ubuntu Linux 4.4.0-* kernels have broken ptrace (please upgrade the kernel; use -kernel flag to override)"))
+	}
 
 	args := flag.Args()
 	runtime.LockOSThread()
@@ -234,7 +238,7 @@ func mainLoop(sys *SysState, mainPID int, onExec func(*ProcState), onExit func(*
 			fmt.Println(oldpid, "_exec", pid)
 		case unix.PTRACE_EVENT_SECCOMP:
 			if pstate.SysEnter {
-				panic("seccomp trace event during syscall")
+				panic("seccomp trace event during syscall (use -seccomp=false to disable)")
 			}
 			if oldSeccomp {
 				resume(pid, 0, true)
