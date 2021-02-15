@@ -15,6 +15,10 @@ import (
 
 func writeScript(dir string, cmd Cmd) {
 	name := fmt.Sprintf("%d-%d-%s", cmd.Parent, cmd.ID, path.Base(cmd.Path))
+	if len(cmd.Args) == 0 {
+		fmt.Fprintln(os.Stderr, "fptrace: can not write script with empty cmdline:", name)
+		return
+	}
 	f, err := os.OpenFile(path.Join(dir, name), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0777) //#nosec
 	e.Exit(err)
 	defer e.CloseOrPrint(f)
