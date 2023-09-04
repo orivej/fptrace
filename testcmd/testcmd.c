@@ -17,7 +17,7 @@ int execer(void *arg) {
     if (fd < 0) {
         perror("open /usr/bin/env");
     }
-    char *argv[] = {"env", "cp", "../b", "../a"};
+    char *argv[] = {"env", "cp", "../b", "../a", NULL};
     syscall(SYS_execveat, fd, "", argv, NULL, AT_EMPTY_PATH);
     perror("execveat");
 }
