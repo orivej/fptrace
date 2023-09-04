@@ -9,7 +9,13 @@
 #include <unistd.h>
 
 #ifndef SYS_execveat
-#define SYS_execveat 322
+# if defined(__aarch64__)
+#  define SYS_execveat 281
+# elif defined(__x86_64__)
+#  define SYS_execveat 322
+# else
+#  error Unknown architecture
+# endif
 #endif
 
 int execer(void *arg) {

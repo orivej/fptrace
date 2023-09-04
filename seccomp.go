@@ -1,4 +1,5 @@
-//+build ignore
+//go:build ignore
+// +build ignore
 
 package main
 
@@ -7,8 +8,8 @@ import (
 	"os"
 
 	"github.com/orivej/e"
+	sys "github.com/orivej/fptrace/syscalls"
 	"golang.org/x/net/bpf"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -16,47 +17,58 @@ const (
 	SECCOMP_RET_ALLOW = 0x7fff0000
 )
 
-var syscalls = []uint32{
-	unix.SYS_CHDIR,
-	unix.SYS_CLOSE,
-	unix.SYS_DUP,
-	unix.SYS_DUP2,
-	unix.SYS_DUP3,
-	unix.SYS_EXECVE,
-	unix.SYS_EXECVEAT,
-	unix.SYS_FCHDIR,
-	unix.SYS_FCNTL,
-	unix.SYS_LINK,
-	unix.SYS_LINKAT,
-	unix.SYS_OPEN,
-	unix.SYS_OPENAT,
-	unix.SYS_PIPE,
-	unix.SYS_PREAD64,
-	unix.SYS_PREADV,
-	unix.SYS_PREADV2,
-	unix.SYS_PWRITE64,
-	unix.SYS_PWRITEV,
-	unix.SYS_PWRITEV2,
-	unix.SYS_READ,
-	unix.SYS_READV,
-	unix.SYS_RENAME,
-	unix.SYS_RENAMEAT,
-	unix.SYS_RENAMEAT2,
-	unix.SYS_RMDIR,
-	unix.SYS_UNLINK,
-	unix.SYS_UNLINKAT,
-	unix.SYS_WRITE,
-	unix.SYS_WRITEV,
+var syscalls = []int64{
+	sys.SYS_CHDIR,
+	sys.SYS_CLOSE,
+	sys.SYS_DUP,
+	sys.SYS_DUP2,
+	sys.SYS_DUP3,
+	sys.SYS_EXECVE,
+	sys.SYS_EXECVEAT,
+	sys.SYS_FCHDIR,
+	sys.SYS_FCNTL,
+	sys.SYS_LINK,
+	sys.SYS_LINKAT,
+	sys.SYS_OPEN,
+	sys.SYS_OPENAT,
+	sys.SYS_PIPE,
+	sys.SYS_PIPE2,
+	sys.SYS_PREAD64,
+	sys.SYS_PREADV,
+	sys.SYS_PREADV2,
+	sys.SYS_PWRITE64,
+	sys.SYS_PWRITEV,
+	sys.SYS_PWRITEV2,
+	sys.SYS_READ,
+	sys.SYS_READV,
+	sys.SYS_RENAME,
+	sys.SYS_RENAMEAT,
+	sys.SYS_RENAMEAT2,
+	sys.SYS_RMDIR,
+	sys.SYS_UNLINK,
+	sys.SYS_UNLINKAT,
+	sys.SYS_WRITE,
+	sys.SYS_WRITEV,
+}
+
+func syscallsOnThisArch() (available []int64) {
+	for _, syscall := range syscalls {
+		if syscall > sys.NOT_ON_THIS_ARCH_MAX {
+			available = append(available, syscall)
+		}
+	}
+	return
 }
 
 func main() {
-	n := len(syscalls)
+	available := syscallsOnThisArch()
+	n := len(available)
 	p := make([]bpf.Instruction, n+3)
 	p[0] = bpf.LoadAbsolute{Off: 0, Size: 4}
 	p[n+1] = bpf.RetConstant{Val: SECCOMP_RET_ALLOW}
 	p[n+2] = bpf.RetConstant{Val: SECCOMP_RET_TRACE}
-	for i, sc := range syscalls {
-		p[i+1] = bpf.JumpIf{Cond: bpf.JumpEqual, Val: sc, SkipTrue: uint8(n - i)}
+	for i, sc := range available {
+		p[i+1] = bpf.JumpIf{Cond: bpf.JumpEqual, Val: uint32(sc), SkipTrue: uint8(n - i)}
 	}
 	ins, err := bpf.Assemble(p)
 	e.Exit(err)

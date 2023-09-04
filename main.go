@@ -14,6 +14,7 @@ import (
 	"syscall"
 
 	"github.com/orivej/e"
+	s "github.com/orivej/fptrace/syscalls"
 	"golang.org/x/sys/unix"
 	"golang.org/x/text/collate"
 	"golang.org/x/text/language"
@@ -196,8 +197,8 @@ func mainLoop(sys *SysState, mainPID int, onExec func(*ProcState), onExit func(*
 			newpid := int(unewpid)
 			cloneFiles := false
 			if trapCause == syscall.PTRACE_EVENT_CLONE {
-				regs, ok := getRegs(pid)
-				cloneFiles = ok && regs.Rdx&syscall.CLONE_FILES != 0
+				regs, ok := getSysexitRegs(pstate, pid)
+				cloneFiles = ok && regs.arg2&syscall.CLONE_FILES != 0
 			}
 			pstates[newpid] = pstate.Clone(cloneFiles)
 			running[newpid] = true
@@ -273,45 +274,45 @@ func terminate(pid int, pstate *ProcState, onExit func(p *ProcState)) {
 }
 
 func sysenter(pid int, pstate *ProcState, sys *SysState) bool {
-	regs, ok := getRegs(pid)
+	regs, ok := getSysenterRegs(pstate, pid)
 	if !ok {
 		return false
 	}
-	pstate.Syscall = int(regs.Orig_rax)
+	pstate.Syscall = int(regs.syscall)
 	switch pstate.Syscall {
-	case syscall.SYS_EXECVE:
+	case s.SYS_EXECVE:
 		pstate.NextCmd = Cmd{
-			Path: pstate.Abs(readString(pid, regs.Rdi)),
-			Args: readStrings(pid, regs.Rsi),
+			Path: pstate.Abs(readString(pid, regs.arg0)),
+			Args: readStrings(pid, regs.arg1),
 			Dir:  pstate.CurDir,
 		}
 		if *flEnv {
-			pstate.NextCmd.Env = readStrings(pid, regs.Rdx)
+			pstate.NextCmd.Env = readStrings(pid, regs.arg2)
 		}
 		fmt.Println(pid, "execve", pstate.NextCmd)
-	case unix.SYS_EXECVEAT:
+	case s.SYS_EXECVEAT:
 		pstate.NextCmd = Cmd{
-			Path: absAt(int32(regs.Rdi), readString(pid, regs.Rsi), pid, pstate, sys),
-			Args: readStrings(pid, regs.Rdx),
+			Path: absAt(int32(regs.arg0), readString(pid, regs.arg1), pid, pstate, sys),
+			Args: readStrings(pid, regs.arg2),
 			Dir:  pstate.CurDir,
 		}
 		if *flEnv {
-			pstate.NextCmd.Env = readStrings(pid, regs.R10)
+			pstate.NextCmd.Env = readStrings(pid, regs.arg3)
 		}
 		fmt.Println(pid, "execveat", pstate.NextCmd)
-	case syscall.SYS_UNLINK, syscall.SYS_RMDIR:
+	case s.SYS_UNLINK, s.SYS_RMDIR:
 		if *flUndelete {
-			regs.Orig_rax = syscall.SYS_ACCESS
-			regs.Rsi = syscall.F_OK
-			err := syscall.PtraceSetRegs(pid, &regs)
+			regs.syscall = s.SYS_ACCESS
+			regs.arg1 = unix.F_OK
+			err := ptraceSetSysenterRegs(pstate, pid, regs)
 			e.Exit(err)
 		}
-	case syscall.SYS_UNLINKAT:
+	case s.SYS_UNLINKAT:
 		if *flUndelete {
-			regs.Orig_rax = syscall.SYS_FACCESSAT
-			regs.R10 = regs.Rdx
-			regs.Rdx = syscall.F_OK
-			err := syscall.PtraceSetRegs(pid, &regs)
+			regs.syscall = s.SYS_FACCESSAT
+			regs.arg3 = regs.arg2
+			regs.arg2 = unix.F_OK
+			err := ptraceSetSysenterRegs(pstate, pid, regs)
 			e.Exit(err)
 		}
 	}
@@ -319,34 +320,35 @@ func sysenter(pid int, pstate *ProcState, sys *SysState) bool {
 }
 
 func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
-	regs, ok := getRegs(pid)
+	regs, ok := getSysexitRegs(pstate, pid)
 	if !ok {
 		return false
 	}
-	ret := int(regs.Rax)
+	ret := int(regs.ret)
 	if ret < 0 {
 		return true
 	}
 	ret32 := int32(ret)
-	if pstate.Syscall == syscall.SYS_FCNTL {
-		switch regs.Rsi {
+	if pstate.Syscall == s.SYS_FCNTL {
+		switch regs.arg1 {
 		case syscall.F_DUPFD:
-			pstate.Syscall = syscall.SYS_DUP
+			pstate.Syscall = s.SYS_DUP
 		case syscall.F_DUPFD_CLOEXEC:
-			pstate.Syscall = syscall.SYS_DUP3
-			regs.Rdx = syscall.O_CLOEXEC
+			pstate.Syscall = s.SYS_DUP3
+			regs.arg2 = syscall.O_CLOEXEC
 		case syscall.F_SETFD:
-			b := regs.Rdx&syscall.FD_CLOEXEC != 0
-			pstate.FDCX[int32(regs.Rdi)] = b
-			fmt.Println(pid, "fcntl/setfd", regs.Rdi, b)
+			b := regs.arg2&syscall.FD_CLOEXEC != 0
+			pstate.FDCX[int32(regs.arg0)] = b
+			fmt.Println(pid, "fcntl/setfd", regs.arg0, b)
 		}
 	}
 	switch pstate.Syscall {
-	case syscall.SYS_OPEN, syscall.SYS_OPENAT:
-		call, at, name, flags := "open", int32(unix.AT_FDCWD), regs.Rdi, regs.Rsi
-		if pstate.Syscall == syscall.SYS_OPENAT {
-			call, at, name, flags = "openat", int32(regs.Rdi), regs.Rsi, regs.Rdx
+	case s.SYS_OPEN, s.SYS_OPENAT:
+		call, at, name, flags := "open", int32(unix.AT_FDCWD), regs.arg0, regs.arg1
+		if pstate.Syscall == s.SYS_OPENAT {
+			call, at, name, flags = "openat", int32(regs.arg0), regs.arg1, regs.arg2
 		}
+
 		var path string
 		switch {
 		default:
@@ -375,72 +377,72 @@ func sysexit(pid int, pstate *ProcState, sys *SysState) bool {
 			}
 		}
 		pstate.IOs.Map[write].Add(inode)
-	case syscall.SYS_CHDIR:
-		path := pstate.Abs(readString(pid, regs.Rdi))
+	case s.SYS_CHDIR:
+		path := pstate.Abs(readString(pid, regs.arg0))
 		pstate.CurDir = path
 		fmt.Println(pid, "chdir", path)
-	case syscall.SYS_FCHDIR:
-		path := sys.FS.Path(pstate.FDs[int32(regs.Rdi)])
+	case s.SYS_FCHDIR:
+		path := sys.FS.Path(pstate.FDs[int32(regs.arg0)])
 		pstate.CurDir = path
 		fmt.Println(pid, "fchdir", path)
-	case syscall.SYS_LINK:
-		oldpath := pstate.Abs(readString(pid, regs.Rdi))
-		newpath := pstate.Abs(readString(pid, regs.Rsi))
+	case s.SYS_LINK:
+		oldpath := pstate.Abs(readString(pid, regs.arg0))
+		newpath := pstate.Abs(readString(pid, regs.arg1))
 		oldnode := sys.FS.Inode(oldpath)
 		if !pstate.IOs.Map[W].Has[oldnode] {
 			pstate.IOs.Map[R].Add(oldnode)
 		}
 		pstate.IOs.Map[W].Add(sys.FS.Inode(newpath))
 		fmt.Println(pid, "link", oldpath, newpath)
-	case syscall.SYS_LINKAT:
-		oldpath := absAt(int32(regs.Rdi), readString(pid, regs.Rsi), pid, pstate, sys)
-		newpath := absAt(int32(regs.Rdx), readString(pid, regs.R10), pid, pstate, sys)
+	case s.SYS_LINKAT:
+		oldpath := absAt(int32(regs.arg0), readString(pid, regs.arg1), pid, pstate, sys)
+		newpath := absAt(int32(regs.arg2), readString(pid, regs.arg3), pid, pstate, sys)
 		oldnode := sys.FS.Inode(oldpath)
 		if !pstate.IOs.Map[W].Has[oldnode] {
 			pstate.IOs.Map[R].Add(oldnode)
 		}
 		pstate.IOs.Map[W].Add(sys.FS.Inode(newpath))
 		fmt.Println(pid, "linkat", oldpath, newpath)
-	case syscall.SYS_RENAME:
-		oldpath := pstate.Abs(readString(pid, regs.Rdi))
-		newpath := pstate.Abs(readString(pid, regs.Rsi))
+	case s.SYS_RENAME:
+		oldpath := pstate.Abs(readString(pid, regs.arg0))
+		newpath := pstate.Abs(readString(pid, regs.arg1))
 		sys.FS.Rename(oldpath, newpath)
 		fmt.Println(pid, "rename", oldpath, newpath)
-	case syscall.SYS_RENAMEAT, unix.SYS_RENAMEAT2:
-		oldpath := absAt(int32(regs.Rdi), readString(pid, regs.Rsi), pid, pstate, sys)
-		newpath := absAt(int32(regs.Rdx), readString(pid, regs.R10), pid, pstate, sys)
+	case s.SYS_RENAMEAT, s.SYS_RENAMEAT2:
+		oldpath := absAt(int32(regs.arg0), readString(pid, regs.arg1), pid, pstate, sys)
+		newpath := absAt(int32(regs.arg2), readString(pid, regs.arg3), pid, pstate, sys)
 		sys.FS.Rename(oldpath, newpath)
 		fmt.Println(pid, "renameat", oldpath, newpath)
-	case syscall.SYS_DUP, syscall.SYS_DUP2, syscall.SYS_DUP3:
-		pstate.FDs[ret32] = pstate.FDs[int32(regs.Rdi)]
-		if pstate.Syscall == syscall.SYS_DUP3 && regs.Rdx&syscall.O_CLOEXEC != 0 {
+	case s.SYS_DUP, s.SYS_DUP2, s.SYS_DUP3:
+		pstate.FDs[ret32] = pstate.FDs[int32(regs.arg0)]
+		if pstate.Syscall == s.SYS_DUP3 && regs.arg2&syscall.O_CLOEXEC != 0 {
 			pstate.FDCX[ret32] = true
 		}
-		fmt.Println(pid, "dup", regs.Rdi, ret32, pstate.FDCX[ret32])
-	case syscall.SYS_READ, syscall.SYS_PREAD64, syscall.SYS_READV, syscall.SYS_PREADV, unix.SYS_PREADV2:
-		inode := pstate.FDs[int32(regs.Rdi)]
+		fmt.Println(pid, "dup", regs.arg0, ret32, pstate.FDCX[ret32])
+	case s.SYS_READ, s.SYS_PREAD64, s.SYS_READV, s.SYS_PREADV, s.SYS_PREADV2:
+		inode := pstate.FDs[int32(regs.arg0)]
 		if inode != 0 && !pstate.IOs.Map[W].Has[inode] {
 			pstate.IOs.Map[R].Add(inode)
 		}
-	case syscall.SYS_WRITE, syscall.SYS_PWRITE64, syscall.SYS_WRITEV, syscall.SYS_PWRITEV, unix.SYS_PWRITEV2:
-		inode := pstate.FDs[int32(regs.Rdi)]
+	case s.SYS_WRITE, s.SYS_PWRITE64, s.SYS_WRITEV, s.SYS_PWRITEV, s.SYS_PWRITEV2:
+		inode := pstate.FDs[int32(regs.arg0)]
 		if inode != 0 {
 			pstate.IOs.Map[W].Add(inode)
 		}
-	case syscall.SYS_CLOSE:
-		n := int32(regs.Rdi)
+	case s.SYS_CLOSE:
+		n := int32(regs.arg0)
 		pstate.FDs[n] = 0
 		delete(pstate.FDCX, n)
-		fmt.Println(pid, "close", regs.Rdi)
-	case syscall.SYS_PIPE:
+		fmt.Println(pid, "close", regs.arg0)
+	case s.SYS_PIPE, s.SYS_PIPE2:
 		var buf [8]byte
-		_, err := syscall.PtracePeekData(pid, uintptr(regs.Rdi), buf[:])
+		_, err := syscall.PtracePeekData(pid, uintptr(regs.arg0), buf[:])
 		e.Exit(err)
 		readfd := int32(binary.LittleEndian.Uint32(buf[:4]))
 		writefd := int32(binary.LittleEndian.Uint32(buf[4:]))
 		inode := sys.FS.Pipe()
 		pstate.FDs[readfd], pstate.FDs[writefd] = inode, inode
-		if regs.Rsi&syscall.O_CLOEXEC != 0 {
+		if regs.arg1&syscall.O_CLOEXEC != 0 {
 			pstate.FDCX[readfd], pstate.FDCX[writefd] = true, true
 		}
 		fmt.Println(pid, "pipe", readfd, writefd, pstate.FDCX[readfd])
