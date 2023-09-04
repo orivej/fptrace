@@ -14,16 +14,6 @@ import (
 
 var errTraceeExited = errors.New("tracee failed to start")
 
-func getRegs(pid int) (syscall.PtraceRegs, bool) {
-	var regs syscall.PtraceRegs
-	err := syscall.PtraceGetRegs(pid, &regs)
-	if err != nil && err.(syscall.Errno) == syscall.ESRCH {
-		return regs, false
-	}
-	e.Exit(err)
-	return regs, true
-}
-
 func readString(pid int, addr uint64) string {
 	var chunk [64]byte
 	var buf []byte

@@ -26,6 +26,7 @@ type Cmd struct {
 type ProcState struct {
 	SysEnter bool           // true on enter to syscall
 	Syscall  int            // call number on exit from syscall
+	Arg0     uint64         // syscall arg0 on syscall exit
 	CurDir   string         // working directory
 	CurCmd   *Cmd           // current command
 	NextCmd  Cmd            // command after return from execve
