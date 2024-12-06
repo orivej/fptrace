@@ -1,16 +1,17 @@
 with import <nixpkgs> { };
 
-buildGoPackage rec {
+buildGoModule rec {
   name = "fptrace";
-  src = ./.;
-  goDeps = ./deps.nix;
-  goPackagePath = "github.com/orivej/fptrace";
-  outputs = [ "out" ];
-  bin = placeholder "out";
+  src = lib.cleanSource ./.;
+  vendorHash = "sha256-hk2FEff/37yJVlpOcca0KgSnI+gTylVhqcYiIjzp/i8=";
+  ldflags = [
+    "-X main.tracee=${placeholder "out"}/bin/_fptracee"
+  ];
+  subPackages = [ "." ];
   preBuild = ''
     mkdir -p $out/bin
-    ( cd go/src/$goPackagePath; go run seccomp.go )
-    cc go/src/$goPackagePath/_fptracee.c -o $out/bin/_fptracee
-    buildFlagsArray=("-ldflags=-X main.tracee=$out/bin/_fptracee")
+    go run seccomp/seccomp.go
+    cc _fptracee.c -o $out/bin/_fptracee
   '';
+  overrideModAttrs.preBuild = "";
 }
